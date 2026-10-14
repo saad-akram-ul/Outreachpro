@@ -12,13 +12,23 @@ app.secret_key = os.environ.get("SECRET_KEY", "change-this-secret-in-production"
 
 
 def get_fernet():
-    """Fernet for encrypting stored email passwords. Key comes from env."""
+    """Fernet for encrypting stored email passwords. Key comes from env.
+
+    Accepts a real Fernet key; if the env value is any other random string
+    (e.g. Render's generateValue), derives a valid Fernet key from it
+    deterministically so encryption never crashes in production.
+    """
     from cryptography.fernet import Fernet
+    import hashlib, base64
     key = os.environ.get("FERNET_KEY")
     if not key:
         # dev fallback (DO NOT rely on in production)
         key = Fernet.generate_key().decode()
-    return Fernet(key.encode() if isinstance(key, str) else key)
+    kb = key.encode() if isinstance(key, str) else key
+    try:
+        return Fernet(kb)
+    except Exception:
+        return Fernet(base64.urlsafe_b64encode(hashlib.sha256(kb).digest()))
 
 
 
