@@ -208,5 +208,12 @@ def init_db():
     db.execute("""CREATE TABLE IF NOT EXISTS settings (
         user_id INTEGER PRIMARY KEY,
         sending_paused INTEGER DEFAULT 0)""")
+    # Migration: smtp_secure column for STARTTLS (Gmail etc.) support
+    try:
+        cols = [c[1] for c in db.execute("PRAGMA table_info(email_accounts)").fetchall()]
+        if "smtp_secure" not in cols:
+            db.execute("ALTER TABLE email_accounts ADD COLUMN smtp_secure TEXT DEFAULT 'ssl'")
+    except Exception:
+        pass
     db.commit()
     db.close()

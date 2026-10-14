@@ -238,13 +238,28 @@ def task_delete(tid):
     return redirect(url_for("tasks"))
 
 
-def test_smtp(host, port, email, password):
-    """Try SMTP_SSL login. Returns (ok, message)."""
+def smtp_login(host, port, email, password, secure="ssl", timeout=25):
+    """Connect + login to SMTP, handling both SSL (465) and STARTTLS (587).
+    Returns the connected smtplib object (use as context manager caller-side)."""
     import smtplib, ssl
+    ctx = ssl.create_default_context()
+    port = int(port)
+    # Auto-detect: 465 -> SSL, 587/25 -> STARTTLS, else use explicit secure flag
+    use_ssl = (secure or "").lower() == "ssl" or port == 465
+    if use_ssl:
+        s = smtplib.SMTP_SSL(host, port, context=ctx, timeout=timeout)
+    else:
+        s = smtplib.SMTP(host, port, timeout=timeout)
+        s.starttls(context=ctx)
+    s.login(email, password)
+    return s
+
+
+def test_smtp(host, port, email, password, secure="ssl"):
+    """Try SMTP login. Returns (ok, message)."""
     try:
-        ctx = ssl.create_default_context()
-        with smtplib.SMTP_SSL(host, int(port), context=ctx, timeout=12) as s:
-            s.login(email, password)
+        with smtp_login(host, port, email, password, secure, timeout=12):
+            pass
         return True, "Connected! Login kamyab raha."
     except Exception as e:
         return False, "Failed: " + str(e)[:140]
@@ -392,8 +407,8 @@ def send_one_email(db, user_id, account_id, to_email, subject, body, html_body=N
             msg["List-Unsubscribe"] = f"<{unsub_url}>"
             msg["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click"
         ctx = ssl.create_default_context()
-        with smtplib.SMTP_SSL(acc["smtp_host"], int(acc["smtp_port"]), context=ctx, timeout=25) as s:
-            s.login(acc["email"], pw)
+        secure = acc["smtp_secure"] if "smtp_secure" in acc.keys() else "ssl"
+        with smtp_login(acc["smtp_host"], acc["smtp_port"], acc["email"], pw, secure) as s:
             s.send_message(msg)
         return True, ""
     except Exception as e:
@@ -590,15 +605,22 @@ def emails():
         password = request.form.get("password", "")
         smtp_host = request.form.get("smtp_host", "").strip() or "smtp.hostinger.com"
         smtp_port = request.form.get("smtp_port", "").strip() or "465"
+        smtp_secure = request.form.get("smtp_secure", "ssl").strip().lower() or "ssl"
+        if smtp_secure not in ("ssl", "tls"):
+            smtp_secure = "ssl"
+        imap_host = request.form.get("imap_host", "").strip() or "imap.hostinger.com"
+        imap_port = request.form.get("imap_port", "").strip() or "993"
         if email and password:
             # Pehle login verify karo — ghalat password par save hi nahi hoga
-            ok, msg = test_smtp(smtp_host, smtp_port, email, password)
+            ok, msg = test_smtp(smtp_host, smtp_port, email, password, smtp_secure)
             if ok:
                 enc = get_fernet().encrypt(password.encode()).decode()
                 db.execute(
                     """INSERT INTO email_accounts
-                       (user_id,email,password_enc,smtp_host,smtp_port) VALUES (?,?,?,?,?)""",
-                    (session["user_id"], email, enc, smtp_host, int(smtp_port)))
+                       (user_id,email,password_enc,smtp_host,smtp_port,smtp_secure,imap_host,imap_port)
+                       VALUES (?,?,?,?,?,?,?,?)""",
+                    (session["user_id"], email, enc, smtp_host, int(smtp_port),
+                     smtp_secure, imap_host, int(imap_port)))
                 db.commit()
                 log_activity(db, session["user_id"], "email_added", f"Email account connected: {email}")
                 db.commit()
@@ -627,7 +649,8 @@ def email_test(aid):
                      (aid, session["user_id"])).fetchone()
     if acc:
         pw = get_fernet().decrypt(acc["password_enc"].encode()).decode()
-        ok, msg = test_smtp(acc["smtp_host"], acc["smtp_port"], acc["email"], pw)
+        secure = acc["smtp_secure"] if "smtp_secure" in acc.keys() and acc["smtp_secure"] else "ssl"
+        ok, msg = test_smtp(acc["smtp_host"], acc["smtp_port"], acc["email"], pw, secure)
         db.execute("UPDATE email_accounts SET last_test=? WHERE id=?",
                    (("OK " if ok else "FAIL ") + datetime.now().strftime("%Y-%m-%d %H:%M"), aid))
         db.commit()
@@ -863,8 +886,8 @@ def email_send_test():
         msg["From"] = acc["email"]
         msg["To"] = to
         ctx = ssl.create_default_context()
-        with smtplib.SMTP_SSL(acc["smtp_host"], int(acc["smtp_port"]), context=ctx, timeout=25) as s:
-            s.login(acc["email"], pw)
+        secure = acc["smtp_secure"] if "smtp_secure" in acc.keys() else "ssl"
+        with smtp_login(acc["smtp_host"], acc["smtp_port"], acc["email"], pw, secure) as s:
             s.send_message(msg)
         # Log test email to outbox so it shows up
         db2 = get_db()

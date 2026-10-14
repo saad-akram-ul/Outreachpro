@@ -5,22 +5,67 @@
 <div class="panel">
   <h3>Naya Email Account Connect Karo</h3>
   <p style="color:var(--muted);font-size:13px;margin-bottom:16px">
-    Apna Hostinger business email add karo. <b>"Connect" dabate hi login verify hoga</b> —
-    ghalat password par account save hi nahi hoga. Password <b>encrypted</b> save hota hai.
+    Koi bhi email connect karo — <b>Gmail, Outlook, Yahoo, Zoho, Hostinger</b> ya koi bhi business email.
+    <b>"Connect" dabate hi login verify hoga</b> — ghalat password par account save hi nahi hoga.
+    Password <b>encrypted</b> save hota hai.
   </p>
-  <form method="POST">
+  <form method="POST" id="emailForm">
     <div class="profile-grid">
+      <div class="field"><label>Email Provider</label>
+        <select name="provider" id="provider" onchange="fillProvider()"
+          style="padding:12px;border-radius:10px;border:1px solid var(--line);background:#0b1220;color:var(--txt);width:100%">
+          <option value="hostinger">Hostinger</option>
+          <option value="gmail">Gmail / Google Workspace</option>
+          <option value="outlook">Outlook / Microsoft 365</option>
+          <option value="yahoo">Yahoo</option>
+          <option value="zoho">Zoho</option>
+          <option value="custom">Custom / Other</option>
+        </select></div>
       <div class="field"><label>Email Address</label>
-        <input type="email" name="email" placeholder="info@tumharidomain.com" required></div>
+        <input type="email" name="email" placeholder="you@yourdomain.com" required></div>
       <div class="field"><label>Email Password</label>
-        <input type="password" name="password" placeholder="Hostinger email password" required></div>
+        <input type="password" name="password" placeholder="Email password" required></div>
+      <div class="field"><label>SMTP Security</label>
+        <select name="smtp_secure" id="smtp_secure"
+          style="padding:12px;border-radius:10px;border:1px solid var(--line);background:#0b1220;color:var(--txt);width:100%">
+          <option value="ssl">SSL (port 465)</option>
+          <option value="tls">STARTTLS (port 587)</option>
+        </select></div>
       <div class="field"><label>SMTP Host</label>
-        <input type="text" name="smtp_host" value="smtp.hostinger.com"></div>
+        <input type="text" name="smtp_host" id="smtp_host" value="smtp.hostinger.com"></div>
       <div class="field"><label>SMTP Port</label>
-        <input type="text" name="smtp_port" value="465"></div>
+        <input type="text" name="smtp_port" id="smtp_port" value="465"></div>
+      <div class="field"><label>IMAP Host</label>
+        <input type="text" name="imap_host" id="imap_host" value="imap.hostinger.com"></div>
+      <div class="field"><label>IMAP Port</label>
+        <input type="text" name="imap_port" id="imap_port" value="993"></div>
     </div>
+    <div id="providerHint" style="font-size:12px;color:var(--warn);margin:8px 0;display:none"></div>
     <button class="btn" type="submit" style="width:auto;padding:12px 32px">+ Connect Email</button>
   </form>
+  <script>
+  const PRESETS = {
+    hostinger: {smtp:"smtp.hostinger.com", sport:"465", sec:"ssl", imap:"imap.hostinger.com", iport:"993", hint:""},
+    gmail: {smtp:"smtp.gmail.com", sport:"587", sec:"tls", imap:"imap.gmail.com", iport:"993",
+      hint:"⚠️ Gmail me normal password NAHI chalega! Google Account → Security → 2-Step Verification ON karo, phir 'App passwords' se 16-digit app password banao aur wahan paste karo."},
+    outlook: {smtp:"smtp.office365.com", sport:"587", sec:"tls", imap:"outlook.office365.com", iport:"993", hint:""},
+    yahoo: {smtp:"smtp.mail.yahoo.com", sport:"587", sec:"tls", imap:"imap.mail.yahoo.com", iport:"993",
+      hint:"⚠️ Yahoo me normal password NAHI chalega! Yahoo Account Security se 'App password' banao."},
+    zoho: {smtp:"smtp.zoho.com", sport:"587", sec:"tls", imap:"imap.zoho.com", iport:"993", hint:""},
+    custom: {smtp:"", sport:"587", sec:"tls", imap:"", iport:"993", hint:"Apne email provider se SMTP/IMAP settings le kar yahan likho."}
+  };
+  function fillProvider() {
+    const p = PRESETS[document.getElementById("provider").value];
+    document.getElementById("smtp_host").value = p.smtp;
+    document.getElementById("smtp_port").value = p.sport;
+    document.getElementById("smtp_secure").value = p.sec;
+    document.getElementById("imap_host").value = p.imap;
+    document.getElementById("imap_port").value = p.iport;
+    const h = document.getElementById("providerHint");
+    if (p.hint) { h.textContent = p.hint; h.style.display = "block"; }
+    else { h.style.display = "none"; }
+  }
+  </script>
 </div>
 <div class="panel">
   <h3>Connected Accounts ({{ accounts|length }})</h3>
