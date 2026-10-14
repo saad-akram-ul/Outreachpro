@@ -14,7 +14,7 @@
       <td><b>{{ u['name'] }}</b></td><td style="color:var(--muted)">{{ u['username'] }}</td>
       <td>{{ "👑 admin" if u['role']=='admin' else "👤 user" }}</td>
       <td>{{ u['emails'] }}</td><td>{{ u['prospects'] }}</td><td>{{ u['sent'] }}</td>
-      <td style="font-size:11px;color:var(--muted)">{{ (u['created_at'] or "")[:10] }}</td>
+      <td style="font-size:11px;color:var(--muted)">{{ ((u['created_at'] or '')|string)[:10] }}</td>
     </tr>
     {% endfor %}
   </table>

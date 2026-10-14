@@ -19,7 +19,7 @@
     <tr><th>Time</th><th>Action</th><th>Details</th></tr>
     {% for r in rows %}
     <tr>
-      <td style="font-size:12px;color:var(--muted);white-space:nowrap">{{ (r['created_at'] or "")[:16] }}</td>
+      <td style="font-size:12px;color:var(--muted);white-space:nowrap">{{ ((r['created_at'] or '')|string)[:16] }}</td>
       <td><span class="badge">{{ r['action'] }}</span></td>
       <td style="font-size:13px;color:var(--muted)">{{ r['details'] or "-" }}</td>
     </tr>
