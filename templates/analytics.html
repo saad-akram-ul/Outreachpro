@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Analytics - OutreachPro by Saad Akram{% endblock %}
+{% block heading %}📊 Analytics{% endblock %}
+{% block content %}
+<div class="panel">
+  <h3>Campaign Performance</h3>
+  <p style="color:var(--muted);font-size:13px;margin-bottom:14px">
+    Opens aur clicks tracking pixel/link se, replies inbox se, bounces auto-detect se.
+  </p>
+  {% if stats %}
+  <div style="overflow-x:auto">
+  <table class="tbl">
+    <tr><th>Campaign</th><th>Sent</th><th>Opens</th><th>Clicks</th><th>Replies</th><th>Bounced</th><th>Unsub</th><th>Open %</th><th>Click %</th><th>Reply %</th></tr>
+    {% for s in stats %}
+    <tr>
+      <td><b>{{ s['name'] }}</b></td>
+      <td>{{ s['sent'] }}</td>
+      <td>{{ s['opens'] }}</td>
+      <td>{{ s['clicks'] }}</td>
+      <td>{{ s['replies'] }}</td>
+      <td>{{ s['bounced'] }}</td>
+      <td>{{ s['unsubs'] }}</td>
+      <td>{{ s['open_rate'] }}%</td>
+      <td>{{ s['click_rate'] }}%</td>
+      <td>{{ s['reply_rate'] }}%</td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+  {% else %}
+  <p style="color:var(--muted)">Abhi koi campaign nahi hai.</p>
+  {% endif %}
+</div>
+{% endblock %}

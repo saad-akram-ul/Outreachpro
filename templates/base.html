@@ -22,6 +22,7 @@
       <a href="{{ url_for('campaigns') }}" class="{% if request.endpoint in ['campaigns','campaign_toggle','campaign_delete'] %}active{% endif %}">🎯 Campaigns</a>
       <a href="{{ url_for('outbox') }}" class="{% if request.endpoint=='outbox' %}active{% endif %}">📤 Outbox</a>
       <a href="{{ url_for('inbox') }}" class="{% if request.endpoint in ['inbox','inbox_check_now','draft_approve','draft_reject'] %}active{% endif %}">📥 Inbox</a>
+      <a href="{{ url_for('analytics') }}" class="{% if request.endpoint=='analytics' %}active{% endif %}">📊 Analytics</a>
       <a href="{{ url_for('activity') }}" class="{% if request.endpoint in ['activity','pause_toggle'] %}active{% endif %}">📋 Activity</a>
       {% if session.get('role')=='admin' %}
       <a href="{{ url_for('admin_panel') }}" class="{% if request.endpoint=='admin_panel' %}active{% endif %}">👑 Admin</a>

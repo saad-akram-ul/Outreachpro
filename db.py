@@ -196,6 +196,15 @@ def init_db():
         action TEXT NOT NULL,
         details TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+    db.execute(f"""CREATE TABLE IF NOT EXISTS email_events (
+        id {auto},
+        user_id INTEGER NOT NULL,
+        outbox_id INTEGER,
+        prospect_id INTEGER,
+        campaign_id INTEGER,
+        event_type TEXT NOT NULL,
+        detail TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
     db.execute("""CREATE TABLE IF NOT EXISTS settings (
         user_id INTEGER PRIMARY KEY,
         sending_paused INTEGER DEFAULT 0)""")

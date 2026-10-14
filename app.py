@@ -264,6 +264,71 @@ def render_text(text, prospect):
                 .replace("{email}", prospect["email"]))
 
 
+def spintax(text):
+    """Resolve {option1|option2|option3} variations randomly (innermost first)."""
+    import random, re
+    text = text or ""
+    pat = re.compile(r"\{([^{}]*)\}")
+    for _ in range(20):
+        m = pat.search(text)
+        if not m:
+            break
+        text = text[:m.start()] + random.choice(m.group(1).split("|")) + text[m.end():]
+    return text
+
+
+def app_base_url():
+    """Public base URL for tracking/unsubscribe links (Render provides RENDER_EXTERNAL_URL)."""
+    return (os.environ.get("APP_URL") or os.environ.get("RENDER_EXTERNAL_URL") or "").rstrip("/")
+
+
+def record_event(db, user_id, outbox_id, prospect_id, campaign_id, event_type, detail=""):
+    db.execute(
+        """INSERT INTO email_events (user_id,outbox_id,prospect_id,campaign_id,event_type,detail)
+           VALUES (?,?,?,?,?,?)""",
+        (user_id, outbox_id, prospect_id, campaign_id, event_type, detail or None))
+
+
+def build_tracked_html(plain_body, outbox_id, unsub_url):
+    """HTML version of the email: linkified URLs routed via click tracker + open pixel."""
+    import re, html as htmllib, urllib.parse
+    base = app_base_url()
+    esc = htmllib.escape(plain_body or "")
+
+    def _link(m):
+        url = m.group(0)
+        if base:
+            q = urllib.parse.quote(url, safe="")
+            return f'<a href="{base}/t/c/{outbox_id}?u={q}">{htmllib.escape(url)}</a>'
+        return f'<a href="{htmllib.escape(url)}">{htmllib.escape(url)}</a>'
+
+    html_body = re.sub(r"https?://[^\s<>\"]+", _link, esc).replace("\n", "<br>")
+    if base:
+        html_body += (f'<br><img src="{base}/t/o/{outbox_id}" width="1" height="1" '
+                      f'style="display:none" alt="">')
+    if unsub_url:
+        html_body += (f'<br><br><span style="font-size:11px;color:#888">'
+                      f'Don\'t want these emails? <a href="{htmllib.escape(unsub_url)}">'
+                      f'Unsubscribe</a></span>')
+    return f"<html><body>{html_body}</body></html>"
+
+
+def unsub_token(prospect_id, user_id):
+    from itsdangerous import URLSafeSerializer
+    s = URLSafeSerializer(app.secret_key, salt="unsub-v1")
+    return s.dumps({"p": prospect_id, "u": user_id})
+
+
+def unsub_data(token):
+    from itsdangerous import URLSafeSerializer, BadSignature
+    s = URLSafeSerializer(app.secret_key, salt="unsub-v1")
+    try:
+        d = s.loads(token)
+        return d if isinstance(d, dict) and "p" in d and "u" in d else None
+    except BadSignature:
+        return None
+
+
 def pick_sender(db, user_id):
     """Round-robin: active account with fewest sends today."""
     from datetime import date
@@ -278,20 +343,29 @@ def pick_sender(db, user_id):
     return rows[0]["id"] if rows else None
 
 
-def send_one_email(db, user_id, account_id, to_email, subject, body):
+def send_one_email(db, user_id, account_id, to_email, subject, body, html_body=None, unsub_url=None):
     """Send via stored SMTP account. Returns (ok, error)."""
     import smtplib, ssl
     from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
     acc = db.execute("SELECT * FROM email_accounts WHERE id=? AND user_id=?",
                      (account_id, user_id)).fetchone()
     if not acc:
         return False, "account not found"
     pw = get_fernet().decrypt(acc["password_enc"].encode()).decode()
     try:
-        msg = MIMEText(body)
+        if html_body:
+            msg = MIMEMultipart("alternative")
+            msg.attach(MIMEText(body, "plain", "utf-8"))
+            msg.attach(MIMEText(html_body, "html", "utf-8"))
+        else:
+            msg = MIMEText(body, "plain", "utf-8")
         msg["Subject"] = subject
         msg["From"] = acc["email"]
         msg["To"] = to_email
+        if unsub_url:
+            msg["List-Unsubscribe"] = f"<{unsub_url}>"
+            msg["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click"
         ctx = ssl.create_default_context()
         with smtplib.SMTP_SSL(acc["smtp_host"], int(acc["smtp_port"]), context=ctx, timeout=25) as s:
             s.login(acc["email"], pw)
@@ -355,6 +429,35 @@ def generate_reply_draft(prospect, inbox_msg, intent):
     return f"Re: {inbox_msg['subject'] or 'your email'}", body
 
 
+def is_bounce_message(from_email, subject):
+    """Heuristic: is this a delivery-failure notification?"""
+    f = (from_email or "").lower()
+    if "mailer-daemon" in f or "mail delivery" in f or "postmaster" in f or "maildaemon" in f:
+        return True
+    s = (subject or "").lower()
+    return (s.startswith("undelivered") or "undeliverable" in s
+            or "delivery status notification" in s or "delivery failure" in s)
+
+
+def extract_bounced_email(msg, body):
+    """Find the original recipient address from a bounce notification."""
+    import re
+    pat = r"[\w.+-]+@[\w-]+\.[\w.]+"
+    for h in ("X-Failed-Recipients", "X-Actual-Recipient", "Original-Recipient",
+              "Final-Recipient"):
+        v = msg.get(h, "")
+        m = re.search(pat, v)
+        if m:
+            return m.group(0).lower()
+    # common body phrasing: "Delivery to the following recipient failed: <addr>"
+    for line in (body or "").splitlines()[:40]:
+        if any(k in line.lower() for k in ("recipient", "failed", "undelivered", "original message")):
+            m = re.search(pat, line)
+            if m:
+                return m.group(0).lower()
+    return None
+
+
 def check_inbox_for_user(db, user_id):
     """IMAP unread check for each active account. Returns (new_messages, new_drafts)."""
     import imaplib, email as emaillib
@@ -390,6 +493,31 @@ def check_inbox_for_user(db, user_id):
                     body = msg.get_payload(decode=True).decode("utf-8", "ignore") if msg.get_payload(decode=True) else ""
                 body = body[:3000]
                 uid = f"{num.decode()}-{hash(from_email + subject)}"
+                # bounce handling: mark prospect bounced, never email again
+                if is_bounce_message(from_email, subject):
+                    bounced_email = extract_bounced_email(msg, body)
+                    bprosp = None
+                    if bounced_email:
+                        bprosp = db.execute(
+                            "SELECT * FROM prospects WHERE user_id=? AND LOWER(email)=?",
+                            (user_id, bounced_email)).fetchone()
+                    if bprosp:
+                        db.execute("UPDATE prospects SET status='bounced' WHERE id=?",
+                                   (bprosp["id"],))
+                        # link to the most recent outbox entry for context
+                        ob = db.execute(
+                            "SELECT id, campaign_id FROM outbox WHERE prospect_id=? ORDER BY id DESC",
+                            (bprosp["id"],)).fetchone()
+                        record_event(db, user_id, ob["id"] if ob else None, bprosp["id"],
+                                     ob["campaign_id"] if ob else None, "bounce", bounced_email)
+                        log_activity(db, user_id, "bounce",
+                                     f"Bounced email marked: {bounced_email}")
+                    try:
+                        m.store(num, "+FLAGS", "\\Seen")
+                    except Exception:
+                        pass
+                    db.commit()
+                    continue
                 # match to a prospect
                 prosp = db.execute(
                     "SELECT * FROM prospects WHERE user_id=? AND LOWER(email)=?",
@@ -819,6 +947,7 @@ def cron_send_due():
                 continue
             prospects = db.execute(
                 """SELECT * FROM prospects p WHERE p.user_id=? AND p.status='new'
+                   AND p.status NOT IN ('bounced','unsubscribed','not_interested')
                    AND NOT EXISTS (SELECT 1 FROM outbox o WHERE o.prospect_id=p.id AND o.campaign_id=?)
                    ORDER BY p.id""", (uid, camp["id"])).fetchall()
             for p in prospects:
@@ -831,16 +960,27 @@ def cron_send_due():
                 if not aid:
                     failed += 1
                     continue
-                subject = render_text(tmpl["subject"], p)
-                body = render_text(tmpl["body"], p)
-                ok, err = send_one_email(db, uid, aid, p["email"], subject, body)
+                subject = spintax(render_text(tmpl["subject"], p))
+                body = spintax(render_text(tmpl["body"], p))
+                # insert outbox first to get an id for tracking links
+                cur = db.execute(
+                    """INSERT INTO outbox
+                       (user_id,campaign_id,prospect_id,account_id,kind,subject,body,status)
+                       VALUES (?,?,?,?,?,?,?,?)""",
+                    (uid, camp["id"], p["id"], aid, "initial", subject, body, "queued"))
+                oid = cur.lastrowid
+                base = app_base_url()
+                unsub_url = f"{base}/unsubscribe/{unsub_token(p['id'], uid)}" if base else None
+                plain_final = body + (f"\n\n---\nDon't want these emails? Unsubscribe: {unsub_url}"
+                                      if unsub_url else "")
+                html_body = build_tracked_html(body, oid, unsub_url)
+                ok, err = send_one_email(db, uid, aid, p["email"], subject, plain_final,
+                                         html_body, unsub_url)
                 now = datetime.now().isoformat(timespec="seconds")
                 db.execute(
-                    """INSERT INTO outbox
-                       (user_id,campaign_id,prospect_id,account_id,kind,subject,body,status,sent_at,error)
-                       VALUES (?,?,?,?,?,?,?,?,?,?)""",
-                    (uid, camp["id"], p["id"], aid, "initial", subject, body,
-                     "sent" if ok else "failed", now if ok else None, err if not ok else None))
+                    "UPDATE outbox SET status=?, sent_at=?, error=?, body=? WHERE id=?",
+                    ("sent" if ok else "failed", now if ok else None,
+                     err if not ok else None, plain_final, oid))
                 if ok:
                     db.execute("UPDATE prospects SET status='contacted' WHERE id=?", (p["id"],))
                     sent += 1
@@ -974,6 +1114,104 @@ def cron_check_inbox():
 def logs():
     return render_template("soon.html", title="Activity Log",
                            admin_name=ADMIN_NAME, admin_email=ADMIN_EMAIL)
+
+
+# ---- Tracking pixel / click redirect (public, no login) ----
+_PIXEL = (b"GIF89a\x01\x00\x01\x00\x80\x00\x00\x00\x00\x00\xff\xff\xff"
+          b"!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00"
+          b"\x00\x02\x02D\x01\x00;")
+
+
+@app.route("/t/o/<int:oid>")
+def track_open(oid):
+    from flask import Response
+    db = get_db()
+    o = db.execute("SELECT user_id,prospect_id,campaign_id FROM outbox WHERE id=?", (oid,)).fetchone()
+    if o:
+        exists = db.execute(
+            "SELECT id FROM email_events WHERE outbox_id=? AND event_type='open'", (oid,)).fetchone()
+        if not exists:
+            record_event(db, o["user_id"], oid, o["prospect_id"], o["campaign_id"], "open")
+            db.commit()
+    db.close()
+    return Response(_PIXEL, mimetype="image/gif")
+
+
+@app.route("/t/c/<int:oid>")
+def track_click(oid):
+    import urllib.parse
+    from flask import redirect
+    url = request.args.get("u", "")
+    db = get_db()
+    o = db.execute("SELECT user_id,prospect_id,campaign_id FROM outbox WHERE id=?", (oid,)).fetchone()
+    if o and url.startswith(("http://", "https://")):
+        record_event(db, o["user_id"], oid, o["prospect_id"], o["campaign_id"], "click", url[:300])
+        db.commit()
+    db.close()
+    if url.startswith(("http://", "https://")):
+        return redirect(url)
+    return "Invalid link", 400
+
+
+# ---- One-click unsubscribe (public, signed token) ----
+@app.route("/unsubscribe/<token>", methods=["GET", "POST"])
+def unsubscribe(token):
+    data = unsub_data(token)
+    if not data:
+        return "Invalid unsubscribe link.", 400
+    db = get_db()
+    p = db.execute("SELECT id,email,name FROM prospects WHERE id=? AND user_id=?",
+                   (data["p"], data["u"])).fetchone()
+    if not p:
+        db.close()
+        return "Invalid unsubscribe link.", 400
+    if request.method == "POST":
+        db.execute("UPDATE prospects SET status='unsubscribed' WHERE id=?", (p["id"],))
+        record_event(db, data["u"], None, p["id"], None, "unsubscribe", p["email"])
+        db.commit()
+        db.close()
+        return render_template("unsubscribed.html", email=p["email"])
+    db.close()
+    return render_template("unsubscribe.html", email=p["email"], name=p["name"] or "there")
+
+
+# ---- Analytics dashboard ----
+@app.route("/analytics")
+@login_required
+def analytics():
+    db = get_db()
+    uid = session["user_id"]
+    camps = db.execute("SELECT id,name FROM campaigns WHERE user_id=? ORDER BY id", (uid,)).fetchall()
+    stats = []
+    for c in camps:
+        cid = c["id"]
+        sent = db.execute(
+            "SELECT COUNT(*) n FROM outbox WHERE campaign_id=? AND status='sent'", (cid,)).fetchone()["n"]
+        opens = db.execute(
+            "SELECT COUNT(DISTINCT outbox_id) n FROM email_events WHERE campaign_id=? AND event_type='open'",
+            (cid,)).fetchone()["n"]
+        clicks = db.execute(
+            "SELECT COUNT(DISTINCT outbox_id) n FROM email_events WHERE campaign_id=? AND event_type='click'",
+            (cid,)).fetchone()["n"]
+        replies = db.execute(
+            "SELECT COUNT(*) n FROM outbox WHERE campaign_id=? AND kind='reply' AND status='sent'",
+            (cid,)).fetchone()["n"]
+        # replies also come via inbox drafts; count replied prospects touched by this campaign
+        bounced = db.execute(
+            "SELECT COUNT(DISTINCT prospect_id) n FROM email_events WHERE campaign_id=? AND event_type='bounce'",
+            (cid,)).fetchone()["n"]
+        unsubs = db.execute(
+            "SELECT COUNT(DISTINCT prospect_id) n FROM email_events WHERE campaign_id=? AND event_type='unsubscribe'",
+            (cid,)).fetchone()["n"]
+        stats.append({
+            "name": c["name"], "sent": sent, "opens": opens, "clicks": clicks,
+            "replies": replies, "bounced": bounced, "unsubs": unsubs,
+            "open_rate": round(opens / sent * 100, 1) if sent else 0,
+            "click_rate": round(clicks / sent * 100, 1) if sent else 0,
+            "reply_rate": round(replies / sent * 100, 1) if sent else 0,
+        })
+    db.close()
+    return render_template("analytics.html", stats=stats)
 
 
 # Idempotent: creates tables + seeds admin on every host
