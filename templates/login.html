@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Login - OutreachPro</title>
+<title>Login - OutreachPro by Saad Akram</title>
 <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
 <div class="login-wrap">
   <div class="login-card">
     <div class="logo"><img src="/img/avatar.jpg" alt="Saad Akram"></div>
-    <h1>Outreach<span>Pro</span></h1>
+    <h1>Outreach<span>Pro</span></h1><p class="byline">by Saad Akram</p>
     <p class="sub">Automated guest-post outreach · by Saad Akram</p>
     {% with msgs = get_flashed_messages(with_categories=true) %}
       {% for cat,msg in msgs %}<div class="alert {{cat}}">{{msg}}</div>{% endfor %}

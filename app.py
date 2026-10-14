@@ -1,11 +1,8 @@
-"""OutreachPro - Automated guest-post outreach software by Saad Akram."""
-import os, sqlite3, functools
+"""OutreachPro by Saad Akram - Automated guest-post outreach software."""
+import os, functools
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from werkzeug.security import generate_password_hash, check_password_hash
-
-BASE = os.path.dirname(os.path.abspath(__file__))
-# Vercel serverless: filesystem is read-only except /tmp
-DB = os.path.join("/tmp" if os.environ.get("VERCEL") else BASE, "outreach.db")
+from db import get_db, init_db
 
 ADMIN_NAME = "Saad Akram"
 ADMIN_EMAIL = "ranasaadakram.gcuf.cs@gmail.com"
@@ -23,118 +20,6 @@ def get_fernet():
         key = Fernet.generate_key().decode()
     return Fernet(key.encode() if isinstance(key, str) else key)
 
-
-def get_db():
-    db = sqlite3.connect(DB)
-    db.row_factory = sqlite3.Row
-    return db
-
-
-def init_db():
-    db = get_db()
-    db.execute("""CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL,
-        name TEXT, email TEXT, role TEXT DEFAULT 'user',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
-    if not db.execute("SELECT id FROM users WHERE username='admin'").fetchone():
-        db.execute(
-            "INSERT INTO users (username,password_hash,name,email,role) VALUES (?,?,?,?,?)",
-            ("admin", generate_password_hash("admin123"), ADMIN_NAME, ADMIN_EMAIL, "admin"))
-    db.execute("""CREATE TABLE IF NOT EXISTS tasks (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        title TEXT NOT NULL,
-        task_date TEXT NOT NULL,
-        done INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
-    db.execute("""CREATE TABLE IF NOT EXISTS email_accounts (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        email TEXT NOT NULL,
-        password_enc TEXT NOT NULL,
-        smtp_host TEXT DEFAULT 'smtp.hostinger.com',
-        smtp_port INTEGER DEFAULT 465,
-        imap_host TEXT DEFAULT 'imap.hostinger.com',
-        imap_port INTEGER DEFAULT 993,
-        active INTEGER DEFAULT 1,
-        last_test TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
-    db.execute("""CREATE TABLE IF NOT EXISTS prospects (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        name TEXT,
-        email TEXT NOT NULL,
-        company TEXT,
-        country TEXT,
-        city TEXT,
-        status TEXT DEFAULT 'new',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
-    db.execute("""CREATE TABLE IF NOT EXISTS templates (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        name TEXT NOT NULL,
-        kind TEXT NOT NULL,
-        subject TEXT NOT NULL,
-        body TEXT NOT NULL,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
-    db.execute("""CREATE TABLE IF NOT EXISTS campaigns (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        name TEXT NOT NULL,
-        template_id INTEGER,
-        daily_limit INTEGER DEFAULT 20,
-        send_hour INTEGER DEFAULT 9,
-        active INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
-    db.execute("""CREATE TABLE IF NOT EXISTS outbox (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        campaign_id INTEGER,
-        prospect_id INTEGER,
-        account_id INTEGER,
-        kind TEXT DEFAULT 'initial',
-        subject TEXT,
-        body TEXT,
-        status TEXT DEFAULT 'queued',
-        scheduled_for TEXT,
-        sent_at TEXT,
-        error TEXT)""")
-    db.execute("""CREATE TABLE IF NOT EXISTS inbox_messages (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        account_id INTEGER,
-        prospect_id INTEGER,
-        from_email TEXT,
-        subject TEXT,
-        body TEXT,
-        received_at TEXT,
-        msg_uid TEXT,
-        status TEXT DEFAULT 'new',
-        UNIQUE(user_id, account_id, msg_uid))""")
-    db.execute("""CREATE TABLE IF NOT EXISTS reply_drafts (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        inbox_id INTEGER,
-        prospect_id INTEGER,
-        account_id INTEGER,
-        subject TEXT,
-        body TEXT,
-        intent TEXT,
-        status TEXT DEFAULT 'pending',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
-    db.execute("""CREATE TABLE IF NOT EXISTS activity_log (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        action TEXT NOT NULL,
-        details TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
-    db.execute("""CREATE TABLE IF NOT EXISTS settings (
-        user_id INTEGER PRIMARY KEY,
-        sending_paused INTEGER DEFAULT 0)""")
-    db.commit()
-    db.close()
 
 
 def log_activity(db, user_id, action, details=""):
@@ -808,10 +693,10 @@ def email_send_test():
     pw = get_fernet().decrypt(acc["password_enc"].encode()).decode()
     try:
         msg = MIMEText(
-            "Ye OutreachPro se bheja gaya test email hai.\n\n"
+            "Ye OutreachPro by Saad Akram se bheja gaya test email hai.\n\n"
             "Agar ye tumhe mil gaya hai to tumhara email account bilkul sahi connect hai.\n\n"
             "Best regards,\nSaad Akram")
-        msg["Subject"] = "OutreachPro Test Email"
+        msg["Subject"] = "OutreachPro by Saad Akram - Test Email"
         msg["From"] = acc["email"]
         msg["To"] = to
         ctx = ssl.create_default_context()
@@ -1081,9 +966,10 @@ def logs():
                            admin_name=ADMIN_NAME, admin_email=ADMIN_EMAIL)
 
 
+# Idempotent: creates tables + seeds admin on every host
+# (local dev, Vercel serverless, Render/gunicorn). Must run at import time
+# because gunicorn never executes the __main__ block below.
+init_db()
+
 if __name__ == "__main__":
-    init_db()
     app.run(host="127.0.0.1", port=5050, debug=False)
-elif os.environ.get("VERCEL"):
-    # Vercel serverless: seed DB in /tmp on cold start
-    init_db()

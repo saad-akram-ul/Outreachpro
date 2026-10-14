@@ -67,3 +67,5 @@ th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase}
 .soon-wrap .big{font-size:52px;margin-bottom:12px}
 .profile-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
 @media(max-width:800px){.profile-grid{grid-template-columns:1fr}.sidebar{display:none}}
+.brand small{display:block;font-size:10px;font-weight:400;opacity:.65;margin-top:2px}
+.byline{font-size:12px;opacity:.7;margin:2px 0 0}

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{% block title %}OutreachPro{% endblock %}</title>
+<title>{% block title %}OutreachPro by Saad Akram{% endblock %}</title>
 <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
@@ -11,7 +11,7 @@
   <aside class="sidebar">
     <div class="brand">
       <img src="/img/avatar.jpg" alt="Saad Akram">
-      <b>Outreach<span>Pro</span></b>
+      <b>Outreach<span>Pro</span></b><small>by Saad Akram</small>
     </div>
     <nav class="nav">
       <a href="{{ url_for('dashboard') }}" class="{% if request.endpoint=='dashboard' %}active{% endif %}">📊 Dashboard</a>
