@@ -841,6 +841,21 @@ def email_send_test():
         with smtplib.SMTP_SSL(acc["smtp_host"], int(acc["smtp_port"]), context=ctx, timeout=25) as s:
             s.login(acc["email"], pw)
             s.send_message(msg)
+        # Log test email to outbox so it shows up
+        db2 = get_db()
+        try:
+            db2.execute(
+                """INSERT INTO outbox
+                   (user_id, account_id, prospect_id, campaign_id, kind,
+                    subject, body, status, sent_at)
+                   VALUES (?,?,?,?, 'test', ?, ?, 'sent', datetime('now'))""",
+                (session["user_id"], acc["id"], None, None,
+                 "OutreachPro by Saad Akram - Test Email",
+                 "Ye OutreachPro by Saad Akram se bheja gaya test email hai."))
+            db2.commit()
+        except Exception:
+            pass
+        db2.close()
         flash(f"Test email {to} par bhej di gayi! Inbox check karo.", "success")
     except Exception as e:
         flash("Bhejne me error: " + str(e)[:160], "error")
