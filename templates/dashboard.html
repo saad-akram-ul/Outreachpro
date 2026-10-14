@@ -3,14 +3,15 @@
 {% block heading %}📊 Dashboard{% endblock %}
 {% block content %}
 <div class="cards">
-  <div class="card"><div class="k">Emails Sent</div><div class="v">0</div></div>
-  <div class="card"><div class="k">Replies Received</div><div class="v">0</div></div>
-  <div class="card"><div class="k">Pending Approval</div><div class="v">0</div></div>
-  <div class="card"><div class="k">Prospects</div><div class="v">0</div></div>
+  <div class="card"><div class="k">Emails Sent</div><div class="v">{{ sent }}</div></div>
+  <div class="card"><div class="k">Replies Received</div><div class="v">{{ replies }}</div></div>
+  <div class="card"><div class="k">Pending Approval</div><div class="v">{{ pending }}</div></div>
+  <div class="card"><div class="k">Prospects</div><div class="v">{{ prospects }}</div></div>
+  <div class="card"><div class="k">Email Accounts</div><div class="v">{{ accounts }}</div></div>
 </div>
 <div class="panel">
-  <h3>🚀 Campaigns <span class="badge soon">Phase 2</span></h3>
-  <p style="color:var(--muted);font-size:14px">Email campaigns, country-time scheduling aur smart replies yahan ayenge. Pehle login + dashboard ready hai.</p>
+  <h3>🚀 Campaigns</h3>
+  <p style="color:var(--muted);font-size:14px">Email campaigns, country-time scheduling aur smart replies <a href="{{ url_for('campaigns') }}" style="color:var(--accent)">Campaigns page</a> par manage karo.</p>
 </div>
 <div class="panel">
   <h3>👑 Admin</h3>

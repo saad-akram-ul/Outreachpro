@@ -138,7 +138,32 @@ def logout():
 @app.route("/dashboard")
 @login_required
 def dashboard():
-    return render_template("dashboard.html", admin_name=ADMIN_NAME, admin_email=ADMIN_EMAIL)
+    db = get_db()
+    uid = session.get("user_id")
+    try:
+        sent = db.execute("SELECT COUNT(*) c FROM outbox WHERE user_id=? AND status='sent'", (uid,)).fetchone()["c"]
+    except Exception:
+        sent = 0
+    try:
+        replies = db.execute("SELECT COUNT(*) c FROM inbox_messages WHERE user_id=?", (uid,)).fetchone()["c"]
+    except Exception:
+        replies = 0
+    try:
+        pending = db.execute("SELECT COUNT(*) c FROM reply_drafts WHERE user_id=? AND status='pending'", (uid,)).fetchone()["c"]
+    except Exception:
+        pending = 0
+    try:
+        prospects = db.execute("SELECT COUNT(*) c FROM prospects WHERE user_id=?", (uid,)).fetchone()["c"]
+    except Exception:
+        prospects = 0
+    try:
+        accounts = db.execute("SELECT COUNT(*) c FROM email_accounts WHERE user_id=?", (uid,)).fetchone()["c"]
+    except Exception:
+        accounts = 0
+    db.close()
+    return render_template("dashboard.html", admin_name=ADMIN_NAME, admin_email=ADMIN_EMAIL,
+                           sent=sent, replies=replies, pending=pending,
+                           prospects=prospects, accounts=accounts)
 
 
 @app.route("/profile", methods=["GET", "POST"])
