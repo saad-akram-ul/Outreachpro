@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Reply - OutreachPro by Saad Akram{% endblock %}
+{% block heading %}✍️ Reply to {{ m['pname'] or m['from_email'] }}{% endblock %}
+{% block content %}
+<div class="panel">
+  <h3>Manual Reply</h3>
+  <p style="color:var(--muted);font-size:13px;margin-bottom:14px">
+    From: <b>{{ m['acc_email'] or "-" }}</b> (jis account par aya tha, usi se jayega)
+  </p>
+  <form method="POST">
+    <div class="field"><label>To</label>
+      <input type="email" name="to_email" value="{{ m['from_email'] }}" required></div>
+    <div class="field"><label>Subject</label>
+      <input type="text" name="subject" value="{{ subject }}" required></div>
+    <div class="field"><label>Message</label>
+      <textarea name="body" rows="10" required>{{ quoted }}</textarea></div>
+    <div style="display:flex;gap:10px;margin-top:12px">
+      <button class="btn" type="submit" style="width:auto;padding:10px 26px">📤 Send Reply</button>
+      <a href="{{ url_for('inbox') }}" class="btn ghost" style="width:auto;padding:10px 22px;text-decoration:none">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

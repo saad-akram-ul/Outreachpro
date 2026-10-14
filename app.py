@@ -906,15 +906,33 @@ def campaign_delete(cid):
 @login_required
 def outbox():
     db = get_db()
+    uid = session["user_id"]
+    page = max(1, int(request.args.get("page", 1) or 1))
+    per_page = 50
+    kind = request.args.get("kind", "all")
+    status = request.args.get("status", "all")
+    where = ["o.user_id=?"]
+    params = [uid]
+    if kind in ("initial", "reply"):
+        where.append("o.kind=?")
+        params.append(kind)
+    if status in ("sent", "failed", "queued"):
+        where.append("o.status=?")
+        params.append(status)
+    wsql = " AND ".join(where)
+    total = db.execute(f"SELECT COUNT(*) n FROM outbox o WHERE {wsql}", params).fetchone()["n"]
+    pages = max(1, (total + per_page - 1) // per_page)
+    page = min(page, pages)
     rows = db.execute(
-        """SELECT o.*, p.email AS pemail, p.country, a.email AS from_email
+        f"""SELECT o.*, p.email AS pemail, p.country, a.email AS from_email
            FROM outbox o
            LEFT JOIN prospects p ON p.id=o.prospect_id
            LEFT JOIN email_accounts a ON a.id=o.account_id
-           WHERE o.user_id=? ORDER BY o.id DESC LIMIT 200""",
-        (session["user_id"],)).fetchall()
+           WHERE {wsql} ORDER BY o.id DESC LIMIT ? OFFSET ?""",
+        params + [per_page, (page - 1) * per_page]).fetchall()
     db.close()
-    return render_template("outbox.html", rows=rows,
+    return render_template("outbox.html", rows=rows, page=page, pages=pages,
+                           total=total, kind=kind, status=status,
                            admin_name=ADMIN_NAME, admin_email=ADMIN_EMAIL)
 
 
@@ -1008,6 +1026,58 @@ def inbox():
         (session["user_id"],)).fetchall()
     db.close()
     return render_template("inbox.html", msgs=msgs, drafts=drafts,
+                           admin_name=ADMIN_NAME, admin_email=ADMIN_EMAIL)
+
+
+@app.route("/inbox/<int:mid>/reply", methods=["GET", "POST"])
+@login_required
+def inbox_reply(mid):
+    """Manually compose & send a reply to a received message."""
+    from datetime import datetime
+    db = get_db()
+    uid = session["user_id"]
+    m = db.execute(
+        """SELECT i.*, p.name AS pname, p.email AS pemail, a.email AS acc_email
+           FROM inbox_messages i
+           LEFT JOIN prospects p ON p.id=i.prospect_id
+           LEFT JOIN email_accounts a ON a.id=i.account_id
+           WHERE i.id=? AND i.user_id=?""", (mid, uid)).fetchone()
+    if not m:
+        db.close()
+        flash("Message nahi mila.", "error")
+        return redirect(url_for("inbox"))
+    if request.method == "POST":
+        to_email = request.form.get("to_email", "").strip()
+        subject = request.form.get("subject", "").strip()
+        body = request.form.get("body", "").strip()
+        if not to_email or not subject or not body:
+            db.close()
+            flash("To, subject aur message zaroori hain.", "error")
+            return redirect(url_for("inbox_reply", mid=mid))
+        ok, err = send_one_email(db, uid, m["account_id"], to_email, subject, body)
+        if ok:
+            db.execute(
+                """INSERT INTO outbox (user_id,prospect_id,account_id,kind,subject,body,status,sent_at)
+                   VALUES (?,?,?,?,?,?,?,?)""",
+                (uid, m["prospect_id"], m["account_id"], "reply", subject, body,
+                 "sent", datetime.now().isoformat(timespec="seconds")))
+            if m["prospect_id"]:
+                db.execute("UPDATE prospects SET status='replied' WHERE id=?", (m["prospect_id"],))
+            log_activity(db, uid, "reply_sent", f"Manual reply sent to {to_email}")
+            db.commit()
+            flash("Reply bhej diya gaya! ✅", "success")
+        else:
+            db.commit()
+            flash("Bhejne me error: " + err[:120], "error")
+        db.close()
+        return redirect(url_for("inbox"))
+    # GET: compose form with quoted original
+    orig_subj = m["subject"] or ""
+    subj = orig_subj if orig_subj.lower().startswith("re:") else f"Re: {orig_subj}"
+    quoted = (f"\n\n--- Original message ---\nFrom: {m['from_email']}\n"
+              f"Date: {m['received_at'] or ''}\n\n{m['body'] or ''}")
+    db.close()
+    return render_template("reply_compose.html", m=m, subject=subj, quoted=quoted,
                            admin_name=ADMIN_NAME, admin_email=ADMIN_EMAIL)
 
 

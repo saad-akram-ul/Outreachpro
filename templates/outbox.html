@@ -3,20 +3,47 @@
 {% block heading %}📤 Outbox (Sent Log){% endblock %}
 {% block content %}
 <div class="panel">
-  <h3>Sent / Failed Emails</h3>
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+    <h3 style="margin:0">All Emails ({{ total }})</h3>
+    <form method="GET" style="display:flex;gap:8px;align-items:center">
+      <select name="kind" onchange="this.form.submit()" style="padding:8px;border-radius:8px;border:1px solid var(--line);background:#0b1220;color:var(--txt)">
+        <option value="all" {% if kind=='all' %}selected{% endif %}>All types</option>
+        <option value="initial" {% if kind=='initial' %}selected{% endif %}>Campaign emails</option>
+        <option value="reply" {% if kind=='reply' %}selected{% endif %}>Replies</option>
+      </select>
+      <select name="status" onchange="this.form.submit()" style="padding:8px;border-radius:8px;border:1px solid var(--line);background:#0b1220;color:var(--txt)">
+        <option value="all" {% if status=='all' %}selected{% endif %}>All status</option>
+        <option value="sent" {% if status=='sent' %}selected{% endif %}>Sent</option>
+        <option value="failed" {% if status=='failed' %}selected{% endif %}>Failed</option>
+        <option value="queued" {% if status=='queued' %}selected{% endif %}>Queued</option>
+      </select>
+    </form>
+  </div>
   {% if rows %}
-  <table>
-    <tr><th>To</th><th>Country</th><th>From</th><th>Subject</th><th>Status</th><th>Sent At</th></tr>
+  <table style="margin-top:12px">
+    <tr><th>To</th><th>Type</th><th>From</th><th>Subject</th><th>Status</th><th>Sent At</th></tr>
     {% for r in rows %}
     <tr>
-      <td>{{ r['pemail'] }}</td><td>{{ r['country'] or "-" }}</td>
+      <td>{{ r['pemail'] or "-" }}</td>
+      <td style="font-size:11px;color:var(--muted)">{{ "📧 campaign" if r['kind']=='initial' else ("💬 reply" if r['kind']=='reply' else r['kind']) }}</td>
       <td style="color:var(--muted);font-size:12px">{{ r['from_email'] or "-" }}</td>
       <td style="color:var(--muted);font-size:12px">{{ (r['subject'] or "")[:40] }}</td>
-      <td>{{ "✅ sent" if r['status']=='sent' else "❌ failed" }}</td>
-      <td style="color:var(--muted);font-size:12px">{{ r['sent_at'] or "-" }}</td>
+      <td>{{ "✅ sent" if r['status']=='sent' else ("❌ failed" if r['status']=='failed' else "⏳ "+r['status']) }}</td>
+      <td style="color:var(--muted);font-size:12px">{{ ((r['sent_at'] or '')|string)[:16] or "-" }}</td>
     </tr>
     {% endfor %}
   </table>
+  {% if pages > 1 %}
+  <div style="display:flex;gap:8px;justify-content:center;margin-top:16px;flex-wrap:wrap">
+    {% if page > 1 %}
+    <a href="{{ url_for('outbox', page=page-1, kind=kind, status=status) }}" class="btn ghost" style="width:auto;padding:8px 18px;text-decoration:none">← Prev</a>
+    {% endif %}
+    <span style="padding:8px 12px;color:var(--muted)">Page {{ page }} / {{ pages }}</span>
+    {% if page < pages %}
+    <a href="{{ url_for('outbox', page=page+1, kind=kind, status=status) }}" class="btn ghost" style="width:auto;padding:8px 18px;text-decoration:none">Next →</a>
+    {% endif %}
+  </div>
+  {% endif %}
   {% else %}
   <div class="empty">Abhi koi email nahi bheji gayi. Campaign start karo! 🚀</div>
   {% endif %}
