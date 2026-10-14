@@ -1,0 +1,18 @@
+# OutreachPro scheduler - runs every 30 min via GitHub Actions (free).
+# Hits the Render app's cron endpoints. Needs repo secret CRON_SECRET.
+# APP_URL is the Render web service URL (update after deploy).
+name: outreach-scheduler
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send due emails
+        run: curl -s --fail --max-time 110 "${{ secrets.APP_URL }}/api/cron/send-due?key=${{ secrets.CRON_SECRET }}"
+      - name: Check inbox for replies
+        run: curl -s --fail --max-time 110 "${{ secrets.APP_URL }}/api/cron/check-inbox?key=${{ secrets.CRON_SECRET }}"

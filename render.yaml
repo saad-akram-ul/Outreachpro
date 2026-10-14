@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: outreachpro
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: outreachpro-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: FERNET_KEY
+        generateValue: true
+      - key: CRON_SECRET
+        generateValue: true
+      - key: PYTHON_VERSION
+        value: 3.12.0
+
+databases:
+  - name: outreachpro-db
+    databaseName: outreachpro
+    user: outreachpro
+    plan: free
