@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sign Up - OutreachPro</title>
+<link rel="stylesheet" href="/css/style.css">
+<style>
+body{display:flex;align-items:center;justify-content:center;min-height:100vh;background:radial-gradient(1200px 600px at 80% -10%,#1e293b 0%,#0b1220 60%)}
+.box{background:#111a2e;border:1px solid var(--line);border-radius:20px;padding:40px;width:min(420px,92vw);box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.box h1{margin:0 0 6px}.box p{color:var(--muted);font-size:14px;margin:0 0 24px}
+</style></head>
+<body>
+<div class="box">
+  <h1>🚀 OutreachPro</h1>
+  <p>Muft account banao aur outreach shuru karo</p>
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% for cat,msg in msgs %}<div class="flash {{cat}}">{{msg}}</div>{% endfor %}
+  {% endwith %}
+  <form method="POST">
+    <div class="field"><label>Apna Naam</label><input type="text" name="name" required placeholder="Ali Raza"></div>
+    <div class="field"><label>Username</label><input type="text" name="username" required placeholder="aliraza"></div>
+    <div class="field"><label>Password (kam az kam 6 harf)</label><input type="password" name="password" required minlength="6"></div>
+    <button class="btn" type="submit">Create Account</button>
+  </form>
+  <p style="text-align:center;margin-top:18px;font-size:13px">Pehle se account hai? <a href="/login" style="color:var(--acc)">Login karo</a></p>
+</div>
+</body></html>

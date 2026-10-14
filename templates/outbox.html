@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Outbox - OutreachPro{% endblock %}
+{% block heading %}📤 Outbox (Sent Log){% endblock %}
+{% block content %}
+<div class="panel">
+  <h3>Sent / Failed Emails</h3>
+  {% if rows %}
+  <table>
+    <tr><th>To</th><th>Country</th><th>From</th><th>Subject</th><th>Status</th><th>Sent At</th></tr>
+    {% for r in rows %}
+    <tr>
+      <td>{{ r['pemail'] }}</td><td>{{ r['country'] or "-" }}</td>
+      <td style="color:var(--muted);font-size:12px">{{ r['from_email'] or "-" }}</td>
+      <td style="color:var(--muted);font-size:12px">{{ (r['subject'] or "")[:40] }}</td>
+      <td>{{ "✅ sent" if r['status']=='sent' else "❌ failed" }}</td>
+      <td style="color:var(--muted);font-size:12px">{{ r['sent_at'] or "-" }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <div class="empty">Abhi koi email nahi bheji gayi. Campaign start karo! 🚀</div>
+  {% endif %}
+</div>
+{% endblock %}

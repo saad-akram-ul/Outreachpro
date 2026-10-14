@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login - OutreachPro</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="login-wrap">
+  <div class="login-card">
+    <div class="logo"><img src="/img/avatar.jpg" alt="Saad Akram"></div>
+    <h1>Outreach<span>Pro</span></h1>
+    <p class="sub">Automated guest-post outreach · by Saad Akram</p>
+    {% with msgs = get_flashed_messages(with_categories=true) %}
+      {% for cat,msg in msgs %}<div class="alert {{cat}}">{{msg}}</div>{% endfor %}
+    {% endwith %}
+    <form method="POST">
+      <div class="field">
+        <label>Username</label>
+        <input type="text" name="username" placeholder="Apna username likhein" required autofocus>
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" name="password" placeholder="••••••••" required>
+      </div>
+      <button class="btn" type="submit">Login →</button>
+    </form>
+    <p style="text-align:center;margin-top:16px;font-size:13px;color:var(--muted)">Naya ho? <a href="/signup" style="color:var(--acc)">Account banao</a></p>
+    <div class="login-foot">Admin: Saad Akram · ranasaadakram.gcuf.cs@gmail.com</div>
+  </div>
+</div>
+</body>
+</html>

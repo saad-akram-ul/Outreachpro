@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Inbox - OutreachPro{% endblock %}
+{% block heading %}📥 Inbox (Replies){% endblock %}
+{% block content %}
+<div class="panel">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+    <div>
+      <h3 style="margin:0">✍️ Reply Drafts (Approval Mode)</h3>
+      <p style="color:var(--muted);font-size:13px;margin:6px 0 0">
+        Koi bhi reply tumhari approval ke baghair NAHI jayega. Approve karo to bhejega, edit bhi kar sakte ho.
+      </p>
+    </div>
+    <a href="{{ url_for('inbox_check_now') }}" class="btn" style="width:auto;padding:10px 22px;text-decoration:none">🔄 Check Inbox Now</a>
+  </div>
+  {% if drafts %}
+    {% for d in drafts %}
+    <div style="border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:14px;background:#0b1220">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+        <b>To: {{ d['pname'] or d['pemail'] }}</b>
+        <span class="badge">{{ d['intent'] }}</span>
+      </div>
+      <form method="POST" action="{{ url_for('draft_approve', did=d['id']) }}">
+        <div class="field"><label>Subject</label>
+          <input type="text" name="subject" value="{{ d['subject'] }}"></div>
+        <div class="field"><label>Reply (edit kar sakte ho)</label>
+          <textarea name="body" rows="7">{{ d['body'] }}</textarea></div>
+        <div style="display:flex;gap:10px;margin-top:10px">
+          <button class="btn" type="submit" style="width:auto;padding:10px 26px">✅ Approve & Send</button>
+          <a href="{{ url_for('draft_reject', did=d['id']) }}" class="btn ghost"
+             style="width:auto;padding:10px 22px;text-decoration:none"
+             onclick="return confirm('Draft reject karna hai?')">❌ Reject</a>
+        </div>
+      </form>
+    </div>
+    {% endfor %}
+  {% else %}
+  <div class="empty">Koi pending draft nahi. Replies ayenge to yahan draft ban kar ayega. 📭</div>
+  {% endif %}
+</div>
+<div class="panel">
+  <h3>📨 Received Replies</h3>
+  {% if msgs %}
+  <table>
+    <tr><th>From</th><th>Subject</th><th>Message</th><th>Received</th></tr>
+    {% for m in msgs %}
+    <tr>
+      <td><b>{{ m['pname'] or m['from_email'] }}</b><br><span style="color:var(--muted);font-size:11px">{{ m['from_email'] }}</span></td>
+      <td style="font-size:12px">{{ (m['subject'] or "")[:40] }}</td>
+      <td style="font-size:12px;color:var(--muted)">{{ (m['body'] or "")[:80] }}...</td>
+      <td style="font-size:11px;color:var(--muted)">{{ (m['received_at'] or "")[:16] }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <div class="empty">Abhi koi reply nahi aya.</div>
+  {% endif %}
+</div>
+{% endblock %}

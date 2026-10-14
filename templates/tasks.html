@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Daily Tasks - OutreachPro{% endblock %}
+{% block heading %}✅ Daily Tasks{% endblock %}
+{% block content %}
+<div class="panel">
+  <h3>Aaj ke tasks <small style="color:var(--muted)">({{ today }})</small>
+    <span style="float:right;font-size:14px;color:var(--muted)">{{ done_n }}/{{ total }} complete</span>
+  </h3>
+  <form method="POST" style="display:flex;gap:10px;margin-bottom:18px">
+    <input type="text" name="title" placeholder="Naya task likhein... (misal: 20 outreach emails bhejo)"
+           required style="flex:1;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:#0b1220;color:var(--txt);font-size:15px">
+    <button class="btn" type="submit" style="width:auto;padding:12px 24px">+ Add</button>
+  </form>
+  {% if tasks %}
+  <table>
+    {% for t in tasks %}
+    <tr>
+      <td style="width:40px;text-align:center">
+        <a href="{{ url_for('task_toggle', tid=t['id']) }}" style="font-size:20px;text-decoration:none">
+          {{ "✅" if t['done'] else "⬜" }}
+        </a>
+      </td>
+      <td style="{% if t['done'] %}text-decoration:line-through;color:var(--muted){% endif %}">{{ t['title'] }}</td>
+      <td style="width:60px;text-align:right">
+        <a href="{{ url_for('task_delete', tid=t['id']) }}" style="color:var(--err);text-decoration:none" title="Delete">🗑️</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <div class="empty">Aaj koi task nahi hai. Upar se pehla task add karo! 👆</div>
+  {% endif %}
+</div>
+{% endblock %}

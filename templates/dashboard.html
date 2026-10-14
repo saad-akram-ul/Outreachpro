@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - OutreachPro{% endblock %}
+{% block heading %}📊 Dashboard{% endblock %}
+{% block content %}
+<div class="cards">
+  <div class="card"><div class="k">Emails Sent</div><div class="v">0</div></div>
+  <div class="card"><div class="k">Replies Received</div><div class="v">0</div></div>
+  <div class="card"><div class="k">Pending Approval</div><div class="v">0</div></div>
+  <div class="card"><div class="k">Prospects</div><div class="v">0</div></div>
+</div>
+<div class="panel">
+  <h3>🚀 Campaigns <span class="badge soon">Phase 2</span></h3>
+  <p style="color:var(--muted);font-size:14px">Email campaigns, country-time scheduling aur smart replies yahan ayenge. Pehle login + dashboard ready hai.</p>
+</div>
+<div class="panel">
+  <h3>👑 Admin</h3>
+  <table>
+    <tr><th>Name</th><td>{{ admin_name }} <span class="badge admin">Admin</span></td></tr>
+    <tr><th>Email</th><td>{{ admin_email }}</td></tr>
+  </table>
+</div>
+{% endblock %}

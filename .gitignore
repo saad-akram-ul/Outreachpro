@@ -1,0 +1,7 @@
+venv/
+__pycache__/
+*.pyc
+outreach.db
+cron.log
+scheduler.out
+.cron_key

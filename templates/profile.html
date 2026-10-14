@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Profile - OutreachPro{% endblock %}
+{% block heading %}👤 Profile{% endblock %}
+{% block content %}
+<div class="profile-grid">
+  <div class="panel">
+    <h3>Account Info</h3>
+    <table>
+      <tr><th>Username</th><td>{{ user['username'] }}</td></tr>
+      <tr><th>Name</th><td>{{ user['name'] }}</td></tr>
+      <tr><th>Email</th><td>{{ user['email'] }}</td></tr>
+      <tr><th>Role</th><td><span class="badge admin">{{ user['role']|capitalize }}</span></td></tr>
+    </table>
+  </div>
+  <div class="panel">
+    <h3>Change Password</h3>
+    <form method="POST">
+      <div class="field"><label>Current Password</label><input type="password" name="current_password" required></div>
+      <div class="field"><label>New Password</label><input type="password" name="new_password" required></div>
+      <div class="field"><label>Confirm New Password</label><input type="password" name="confirm_password" required></div>
+      <button class="btn" type="submit">Update Password</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

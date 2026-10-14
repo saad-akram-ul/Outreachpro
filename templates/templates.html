@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Templates - OutreachPro{% endblock %}
+{% block heading %}✉️ Email Templates{% endblock %}
+{% block content %}
+<div class="panel">
+  <h3>Professional Templates</h3>
+  <p style="color:var(--muted);font-size:13px;margin-bottom:16px">
+    Placeholders: <b>{name}</b>, <b>{company}</b>, <b>{email}</b> — bhejte waqt auto-fill honge.
+    Kisi template par click karke edit kar sakte ho.
+  </p>
+  <table>
+    <tr><th>Template</th><th>Subject</th><th></th></tr>
+    {% for t in templates %}
+    <tr>
+      <td><b>{{ t['name'] }}</b></td>
+      <td style="color:var(--muted)">{{ t['subject'] }}</td>
+      <td style="text-align:right"><a href="{{ url_for('template_edit', tid=t['id']) }}" style="color:var(--acc);text-decoration:none">✏️ Edit</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

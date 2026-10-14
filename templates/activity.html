@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Activity Log - OutreachPro{% endblock %}
+{% block heading %}📋 Activity Log{% endblock %}
+{% block content %}
+<div class="panel">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+    <h3 style="margin:0">Sab kaam ka hisaab</h3>
+    {% if paused %}
+    <a href="{{ url_for('pause_toggle') }}" class="btn" style="width:auto;padding:10px 24px;text-decoration:none;background:linear-gradient(135deg,#22c55e,#16a34a)">▶️ Resume Sending</a>
+    {% else %}
+    <a href="{{ url_for('pause_toggle') }}" class="btn" style="width:auto;padding:10px 24px;text-decoration:none;background:linear-gradient(135deg,#ef4444,#dc2626)" onclick="return confirm('SENDING PAUSE karni hai? Koi email nahi jayegi.')">⏸️ Emergency Pause</a>
+    {% endif %}
+  </div>
+  {% if paused %}
+  <div class="flash info">⏸️ Sending abhi <b>PAUSED</b> hai — scheduler koi email nahi bhejega.</div>
+  {% endif %}
+  {% if rows %}
+  <table>
+    <tr><th>Time</th><th>Action</th><th>Details</th></tr>
+    {% for r in rows %}
+    <tr>
+      <td style="font-size:12px;color:var(--muted);white-space:nowrap">{{ (r['created_at'] or "")[:16] }}</td>
+      <td><span class="badge">{{ r['action'] }}</span></td>
+      <td style="font-size:13px;color:var(--muted)">{{ r['details'] or "-" }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <div class="empty">Abhi koi activity nahi.</div>
+  {% endif %}
+</div>
+{% endblock %}

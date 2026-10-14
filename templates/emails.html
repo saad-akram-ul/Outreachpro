@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Email Accounts - OutreachPro{% endblock %}
+{% block heading %}📧 Email Accounts{% endblock %}
+{% block content %}
+<div class="panel">
+  <h3>Naya Email Account Connect Karo</h3>
+  <p style="color:var(--muted);font-size:13px;margin-bottom:16px">
+    Apna Hostinger business email add karo. <b>"Connect" dabate hi login verify hoga</b> —
+    ghalat password par account save hi nahi hoga. Password <b>encrypted</b> save hota hai.
+  </p>
+  <form method="POST">
+    <div class="profile-grid">
+      <div class="field"><label>Email Address</label>
+        <input type="email" name="email" placeholder="info@tumharidomain.com" required></div>
+      <div class="field"><label>Email Password</label>
+        <input type="password" name="password" placeholder="Hostinger email password" required></div>
+      <div class="field"><label>SMTP Host</label>
+        <input type="text" name="smtp_host" value="smtp.hostinger.com"></div>
+      <div class="field"><label>SMTP Port</label>
+        <input type="text" name="smtp_port" value="465"></div>
+    </div>
+    <button class="btn" type="submit" style="width:auto;padding:12px 32px">+ Connect Email</button>
+  </form>
+</div>
+<div class="panel">
+  <h3>Connected Accounts ({{ accounts|length }})</h3>
+  {% if accounts %}
+  <table>
+    <tr><th>Email</th><th>SMTP</th><th>Status</th><th>Last Test</th><th style="text-align:right">Actions</th></tr>
+    {% for a in accounts %}
+    <tr>
+      <td>{{ a['email'] }}</td>
+      <td style="color:var(--muted);font-size:12px">{{ a['smtp_host'] }}:{{ a['smtp_port'] }}</td>
+      <td>{{ "🟢 Active" if a['active'] else "⚪ Paused" }}</td>
+      <td style="color:var(--muted);font-size:12px">{{ a['last_test'] or "-" }}</td>
+      <td style="text-align:right;white-space:nowrap">
+        <a href="{{ url_for('email_test', aid=a['id']) }}" style="color:var(--acc);text-decoration:none;margin-right:10px">🔌 Test</a>
+        <a href="{{ url_for('email_toggle', aid=a['id']) }}" style="color:var(--muted);text-decoration:none;margin-right:10px">{{ "⏸️" if a['active'] else "▶️" }}</a>
+        <a href="{{ url_for('email_delete', aid=a['id']) }}" style="color:var(--err);text-decoration:none" onclick="return confirm('Delete this account?')">🗑️</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  <p style="color:var(--muted);font-size:12px;margin-top:12px">💡 Sending rotation: mails active accounts me bari-bari jayenge.</p>
+  {% else %}
+  <div class="empty">Abhi koi email connect nahi hai. Upar se pehla account add karo! 👆</div>
+  {% endif %}
+</div>
+{% if accounts %}
+<div class="panel">
+  <h3>🧪 Test Email Bhejo</h3>
+  <p style="color:var(--muted);font-size:13px;margin-bottom:14px">Kisi bhi connected account se asal test email bhejo:</p>
+  <form method="POST" action="{{ url_for('email_send_test') }}" style="display:flex;gap:10px;flex-wrap:wrap">
+    <select name="account_id" required
+      style="padding:12px;border-radius:10px;border:1px solid var(--line);background:#0b1220;color:var(--txt)">
+      {% for a in accounts %}{% if a['active'] %}
+      <option value="{{ a['id'] }}">{{ a['email'] }}</option>
+      {% endif %}{% endfor %}
+    </select>
+    <input type="email" name="to" placeholder="Jis email par bhejna hai" required
+      style="flex:1;min-width:200px;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:#0b1220;color:var(--txt)">
+    <button class="btn" type="submit" style="width:auto;padding:12px 28px">📨 Send Test</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

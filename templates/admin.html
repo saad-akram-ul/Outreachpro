@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Admin Panel - OutreachPro{% endblock %}
+{% block heading %}👑 Admin Panel{% endblock %}
+{% block content %}
+<div class="panel">
+  <h3>Users ({{ users|length }})</h3>
+  <p style="color:var(--muted);font-size:13px;margin-bottom:14px">
+    Sirf <b>{{ admin_name }}</b> admin hai. Har user ka data alag aur private hai.
+  </p>
+  <table>
+    <tr><th>Name</th><th>Username</th><th>Role</th><th>Emails</th><th>Prospects</th><th>Sent</th><th>Joined</th></tr>
+    {% for u in users %}
+    <tr>
+      <td><b>{{ u['name'] }}</b></td><td style="color:var(--muted)">{{ u['username'] }}</td>
+      <td>{{ "👑 admin" if u['role']=='admin' else "👤 user" }}</td>
+      <td>{{ u['emails'] }}</td><td>{{ u['prospects'] }}</td><td>{{ u['sent'] }}</td>
+      <td style="font-size:11px;color:var(--muted)">{{ (u['created_at'] or "")[:10] }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Prospects - OutreachPro{% endblock %}
+{% block heading %}👥 Prospects{% endblock %}
+{% block content %}
+<div class="panel">
+  <h3>CSV Upload</h3>
+  <p style="color:var(--muted);font-size:13px;margin-bottom:14px">
+    CSV me ye columns hon: <b>name, email, company, country, city</b> (pehli line header ho)
+  </p>
+  <form method="POST" action="{{ url_for('prospects_upload') }}" enctype="multipart/form-data" style="display:flex;gap:10px">
+    <input type="file" name="file" accept=".csv" required
+           style="flex:1;padding:10px;border-radius:10px;border:1px solid var(--line);background:#0b1220;color:var(--txt)">
+    <button class="btn" type="submit" style="width:auto;padding:10px 24px">⬆️ Upload</button>
+  </form>
+</div>
+<div class="panel">
+  <h3>Aik Prospect Add Karo</h3>
+  <form method="POST">
+    <div class="profile-grid">
+      <div class="field"><label>Name</label><input type="text" name="name" placeholder="John Smith"></div>
+      <div class="field"><label>Email *</label><input type="email" name="email" placeholder="john@company.com" required></div>
+      <div class="field"><label>Company</label><input type="text" name="company" placeholder="Company Inc"></div>
+      <div class="field"><label>Country</label><input type="text" name="country" placeholder="USA"></div>
+      <div class="field"><label>City</label><input type="text" name="city" placeholder="New York"></div>
+    </div>
+    <button class="btn" type="submit" style="width:auto;padding:12px 32px">+ Add Prospect</button>
+  </form>
+</div>
+<div class="panel">
+  <h3>Prospect List ({{ total }})</h3>
+  {% if prospects %}
+  <table>
+    <tr><th>Name</th><th>Email</th><th>Company</th><th>Country</th><th>City</th><th>Status</th><th></th></tr>
+    {% for p in prospects %}
+    <tr>
+      <td>{{ p['name'] or "-" }}</td><td>{{ p['email'] }}</td>
+      <td>{{ p['company'] or "-" }}</td><td>{{ p['country'] or "-" }}</td>
+      <td>{{ p['city'] or "-" }}</td><td>{{ p['status'] }}</td>
+      <td><a href="{{ url_for('prospect_delete', pid=p['id']) }}" style="color:var(--err);text-decoration:none" onclick="return confirm('Delete?')">🗑️</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <div class="empty">Koi prospect nahi hai. CSV upload karo ya aik-aik add karo! 👆</div>
+  {% endif %}
+</div>
+{% endblock %}

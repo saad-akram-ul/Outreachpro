@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Campaigns - OutreachPro{% endblock %}
+{% block heading %}🎯 Campaigns{% endblock %}
+{% block content %}
+<div class="panel">
+  <h3>Nayi Campaign</h3>
+  <p style="color:var(--muted);font-size:13px;margin-bottom:14px">
+    Campaign active hote hi scheduler har 30 min check karega — jiss prospect ke mulk me subah ke
+    <b>9 baje</b> (ya tumhara set hour) honge, usko auto email jayegi. Daily limit ka khayal khud rakhega.
+  </p>
+  <form method="POST">
+    <div class="profile-grid">
+      <div class="field"><label>Campaign Name</label>
+        <input type="text" name="name" placeholder="US Agencies - Oct" required></div>
+      <div class="field"><label>Email Template</label>
+        <select name="template_id" required style="width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:#0b1220;color:var(--txt)">
+          {% for t in templates %}<option value="{{ t['id'] }}">{{ t['name'] }}</option>{% endfor %}
+        </select></div>
+      <div class="field"><label>Daily Limit (emails/day)</label>
+        <input type="number" name="daily_limit" value="20" min="1" max="200"></div>
+      <div class="field"><label>Send Hour (prospect ke local time par)</label>
+        <input type="number" name="send_hour" value="9" min="0" max="23"></div>
+    </div>
+    <button class="btn" type="submit" style="width:auto;padding:12px 32px">+ Create Campaign</button>
+  </form>
+</div>
+<div class="panel">
+  <h3>Campaigns ({{ campaigns|length }})</h3>
+  {% if campaigns %}
+  <table>
+    <tr><th>Name</th><th>Template</th><th>Limit</th><th>Hour</th><th>Sent</th><th>Status</th><th style="text-align:right">Actions</th></tr>
+    {% for c in campaigns %}
+    <tr>
+      <td><b>{{ c['name'] }}</b></td><td style="color:var(--muted)">{{ c['tname'] or "-" }}</td>
+      <td>{{ c['daily_limit'] }}/day</td><td>{{ c['send_hour'] }}:00</td><td>{{ c['sent'] }}</td>
+      <td>{{ "🟢 Active" if c['active'] else "⚪ Paused" }}</td>
+      <td style="text-align:right;white-space:nowrap">
+        <a href="{{ url_for('campaign_toggle', cid=c['id']) }}" style="color:var(--acc);text-decoration:none;margin-right:10px">{{ "⏸️ Pause" if c['active'] else "▶️ Start" }}</a>
+        <a href="{{ url_for('campaign_delete', cid=c['id']) }}" style="color:var(--err);text-decoration:none" onclick="return confirm('Delete campaign?')">🗑️</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <div class="empty">Koi campaign nahi hai. Upar se pehli campaign banao! 👆</div>
+  {% endif %}
+</div>
+{% endblock %}

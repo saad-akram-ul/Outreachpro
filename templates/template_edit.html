@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Edit Template - OutreachPro{% endblock %}
+{% block heading %}✏️ {{ t['name'] }}{% endblock %}
+{% block content %}
+<div class="panel">
+  <form method="POST">
+    <div class="field"><label>Template Name</label>
+      <input type="text" name="name" value="{{ t['name'] }}" required></div>
+    <div class="field"><label>Subject</label>
+      <input type="text" name="subject" value="{{ t['subject'] }}" required></div>
+    <div class="field"><label>Body</label>
+      <textarea name="body" rows="16" required
+        style="width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:#0b1220;color:var(--txt);font-size:14px;font-family:inherit">{{ t['body'] }}</textarea></div>
+    <button class="btn" type="submit" style="width:auto;padding:12px 32px">💾 Save Template</button>
+    <a href="{{ url_for('templates') }}" style="color:var(--muted);margin-left:14px;text-decoration:none">← Back</a>
+  </form>
+</div>
+{% endblock %}
