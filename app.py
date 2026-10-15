@@ -240,42 +240,50 @@ def task_delete(tid):
 
 def smtp_login(host, port, email, password, secure="ssl", timeout=25):
     """Connect + login to SMTP, handling both SSL (465) and STARTTLS (587).
+
+    Auto-fallback: on a NETWORK-level failure (unreachable, timeout, DNS),
+    retries the alternate port (465 <-> 587) before giving up. Auth failures
+    are NOT retried - a wrong password stays a wrong password.
     Returns the connected smtplib object (use as context manager caller-side)."""
-    import smtplib, ssl
+    import smtplib, ssl, socket
     ctx = ssl.create_default_context()
     port = int(port)
-    # Auto-detect: 465 -> SSL, 587/25 -> STARTTLS, else use explicit secure flag
-    use_ssl = (secure or "").lower() == "ssl" or port == 465
-    if use_ssl:
-        s = smtplib.SMTP_SSL(host, port, context=ctx, timeout=timeout)
-    else:
-        s = smtplib.SMTP(host, port, timeout=timeout)
-        s.starttls(context=ctx)
-    s.login(email, password)
-    return s
+
+    def _connect(p, sec):
+        use_ssl = (sec or "").lower() == "ssl" or int(p) == 465
+        if use_ssl:
+            s = smtplib.SMTP_SSL(host, int(p), context=ctx, timeout=timeout)
+        else:
+            s = smtplib.SMTP(host, int(p), timeout=timeout)
+            s.starttls(context=ctx)
+        s.login(email, password)
+        return s
+
+    try:
+        return _connect(port, secure)
+    except (socket.error, OSError) as e:
+        err_no = getattr(e, "errno", None)
+        if err_no in (101, 110, 113) or "unreachable" in str(e).lower() \
+                or "timed out" in str(e).lower():
+            alt_port = 587 if int(port) == 465 else 465
+            alt_secure = "tls" if alt_port == 587 else "ssl"
+            return _connect(alt_port, alt_secure)
+        raise
+
+
+def _is_network_error(e):
+    err_no = getattr(e, "errno", None)
+    return (err_no in (101, 110, 113) or "unreachable" in str(e).lower()
+            or "timed out" in str(e).lower())
 
 
 def test_smtp(host, port, email, password, secure="ssl"):
-    """Try SMTP login. Returns (ok, message). Auto-fallback to alternate port on network errors."""
-    import socket
-    # Primary attempt
+    """Try SMTP login. Returns (ok, message). Network-level failures
+    auto-fallback to the alternate port (handled inside smtp_login)."""
     try:
         with smtp_login(host, port, email, password, secure, timeout=12):
             pass
         return True, "Connected! Login kamyab raha."
-    except (socket.error, OSError) as e:
-        err_no = getattr(e, 'errno', None)
-        # Network-level failure (unreachable, timeout, DNS) — try alternate port
-        if err_no in (101, 110, 113) or 'unreachable' in str(e).lower() or 'timed out' in str(e).lower():
-            alt_port = "587" if str(port) == "465" else "465"
-            alt_secure = "tls" if alt_port == "587" else "ssl"
-            try:
-                with smtp_login(host, alt_port, email, password, alt_secure, timeout=12):
-                    pass
-                return True, f"Connected! (port {alt_port} par kamyab raha)"
-            except Exception as e2:
-                return False, f"Network issue: {str(e)[:80]} — dobara try karo ya thodi der baad."
-        return False, "Failed: " + str(e)[:140]
     except Exception as e:
         return False, "Failed: " + str(e)[:140]
 
@@ -305,12 +313,12 @@ COUNTRY_TZ = {
 def prospect_local_hour(prospect):
     """Current hour (0-23) in the prospect's country timezone."""
     from zoneinfo import ZoneInfo
-    from datetime import datetime
+    from datetime import datetime, timezone
     tzname = COUNTRY_TZ.get((prospect["country"] or "").strip().lower(), "UTC")
     try:
         return datetime.now(ZoneInfo(tzname)).hour
     except Exception:
-        return datetime.utcnow().hour
+        return datetime.now(timezone.utc).hour
 
 
 def render_text(text, prospect):
@@ -345,19 +353,27 @@ def record_event(db, user_id, outbox_id, prospect_id, campaign_id, event_type, d
 
 
 def build_tracked_html(plain_body, outbox_id, unsub_url):
-    """HTML version of the email: linkified URLs routed via click tracker + open pixel."""
+    """HTML version of the email: linkified URLs routed via click tracker + open pixel.
+
+    Linkify FIRST on the raw text, then escape the non-URL parts. (Escaping
+    first would turn & into &amp; inside URLs and corrupt query strings.)
+    """
     import re, html as htmllib, urllib.parse
     base = app_base_url()
-    esc = htmllib.escape(plain_body or "")
-
-    def _link(m):
+    url_pat = re.compile(r"https?://[^\s<>\"]+")
+    parts, last = [], 0
+    for m in url_pat.finditer(plain_body or ""):
+        parts.append(htmllib.escape((plain_body or "")[last:m.start()]))
         url = m.group(0)
         if base:
             q = urllib.parse.quote(url, safe="")
-            return f'<a href="{base}/t/c/{outbox_id}?u={q}">{htmllib.escape(url)}</a>'
-        return f'<a href="{htmllib.escape(url)}">{htmllib.escape(url)}</a>'
-
-    html_body = re.sub(r"https?://[^\s<>\"]+", _link, esc).replace("\n", "<br>")
+            parts.append(f'<a href="{base}/t/c/{outbox_id}?u={q}">'
+                         f"{htmllib.escape(url)}</a>")
+        else:
+            parts.append(f'<a href="{htmllib.escape(url)}">{htmllib.escape(url)}</a>')
+        last = m.end()
+    parts.append(htmllib.escape((plain_body or "")[last:]))
+    html_body = "".join(parts).replace("\n", "<br>")
     if base:
         html_body += (f'<br><img src="{base}/t/o/{outbox_id}" width="1" height="1" '
                       f'style="display:none" alt="">')
@@ -547,7 +563,11 @@ def check_inbox_for_user(db, user_id):
                 else:
                     body = msg.get_payload(decode=True).decode("utf-8", "ignore") if msg.get_payload(decode=True) else ""
                 body = body[:3000]
-                uid = f"{num.decode()}-{hash(from_email + subject)}"
+                # Stable uid: hashlib (NOT builtin hash() - it is salted per
+                # process, so restarts would re-insert the same emails as dups)
+                import hashlib
+                uid = (f"{num.decode()}-"
+                       f"{hashlib.md5((from_email + subject).encode()).hexdigest()[:16]}")
                 # bounce handling: mark prospect bounced, never email again
                 if is_bounce_message(from_email, subject):
                     bounced_email = extract_bounced_email(msg, body)
@@ -626,6 +646,10 @@ def emails():
         imap_host = request.form.get("imap_host", "").strip() or "imap.hostinger.com"
         imap_port = request.form.get("imap_port", "").strip() or "993"
         if email and password:
+            if not smtp_port.isdigit() or not imap_port.isdigit():
+                flash("SMTP/IMAP port me sirf number likho (jaise 465 ya 587).", "error")
+                db.close()
+                return redirect(url_for("emails"))
             # Pehle login verify karo — ghalat password par save hi nahi hoga
             ok, msg = test_smtp(smtp_host, smtp_port, email, password, smtp_secure)
             if ok:
@@ -907,14 +931,16 @@ def email_send_test():
         # Log test email to outbox so it shows up
         db2 = get_db()
         try:
+            from datetime import datetime
             db2.execute(
                 """INSERT INTO outbox
                    (user_id, account_id, prospect_id, campaign_id, kind,
                     subject, body, status, sent_at)
-                   VALUES (?,?,?,?, 'test', ?, ?, 'sent', datetime('now'))""",
+                   VALUES (?,?,?,?, 'test', ?, ?, 'sent', ?)""",
                 (session["user_id"], acc["id"], None, None,
                  "OutreachPro by Saad Akram - Test Email",
-                 "Ye OutreachPro by Saad Akram se bheja gaya test email hai."))
+                 "Ye OutreachPro by Saad Akram se bheja gaya test email hai.",
+                 datetime.now().isoformat(timespec="seconds")))
             db2.commit()
         except Exception:
             pass

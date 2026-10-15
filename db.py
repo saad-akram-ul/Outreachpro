@@ -208,12 +208,21 @@ def init_db():
     db.execute("""CREATE TABLE IF NOT EXISTS settings (
         user_id INTEGER PRIMARY KEY,
         sending_paused INTEGER DEFAULT 0)""")
-    # Migration: smtp_secure column for STARTTLS (Gmail etc.) support
-    try:
-        cols = [c[1] for c in db.execute("PRAGMA table_info(email_accounts)").fetchall()]
-        if "smtp_secure" not in cols:
-            db.execute("ALTER TABLE email_accounts ADD COLUMN smtp_secure TEXT DEFAULT 'ssl'")
-    except Exception:
-        pass
+    # Migration: smtp_secure column for STARTTLS (Gmail etc.) support.
+    # Must work on BOTH backends: PRAGMA is SQLite-only, so Postgres
+    # needs its own branch (ADD COLUMN IF NOT EXISTS is idempotent).
+    if USE_PG:
+        try:
+            db.execute("ALTER TABLE email_accounts ADD COLUMN IF NOT EXISTS "
+                       "smtp_secure TEXT DEFAULT 'ssl'")
+        except Exception:
+            pass
+    else:
+        try:
+            cols = [c[1] for c in db.execute("PRAGMA table_info(email_accounts)").fetchall()]
+            if "smtp_secure" not in cols:
+                db.execute("ALTER TABLE email_accounts ADD COLUMN smtp_secure TEXT DEFAULT 'ssl'")
+        except Exception:
+            pass
     db.commit()
     db.close()
