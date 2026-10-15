@@ -1059,17 +1059,14 @@ def netdiag():
     Remove after diagnosis. No auth - returns only connectivity booleans."""
     import socket
     targets = [
-        ("smtp.hostinger.com", 465), ("smtp.hostinger.com", 587),
-        ("imap.hostinger.com", 993),
-        ("smtp.gmail.com", 587), ("smtp.gmail.com", 465),
-        ("imap.gmail.com", 993),
-        ("google.com", 443), ("github.com", 443),
+        ("smtp.hostinger.com", 465),
+        ("smtp.gmail.com", 587),
     ]
     out = {}
     for host, port in targets:
         key = f"{host}:{port}"
         try:
-            s = socket.create_connection((host, port), timeout=8)
+            s = socket.create_connection((host, port), timeout=4)
             s.close()
             out[key] = "OK"
         except Exception as e:
