@@ -16,10 +16,6 @@
           style="padding:12px;border-radius:10px;border:1px solid var(--line);background:#0b1220;color:var(--txt);width:100%">
           <option value="hostinger">Hostinger</option>
           <option value="gmail">Gmail / Google Workspace</option>
-          <option value="outlook">Outlook / Microsoft 365</option>
-          <option value="yahoo">Yahoo</option>
-          <option value="zoho">Zoho</option>
-          <option value="custom">Custom / Other</option>
         </select></div>
       <div class="field"><label>Email Address</label>
         <input type="email" name="email" placeholder="you@yourdomain.com" required></div>
@@ -47,12 +43,7 @@
   const PRESETS = {
     hostinger: {smtp:"smtp.hostinger.com", sport:"465", sec:"ssl", imap:"imap.hostinger.com", iport:"993", hint:""},
     gmail: {smtp:"smtp.gmail.com", sport:"587", sec:"tls", imap:"imap.gmail.com", iport:"993",
-      hint:"⚠️ Gmail me normal password NAHI chalega! Google Account → Security → 2-Step Verification ON karo, phir 'App passwords' se 16-digit app password banao aur wahan paste karo."},
-    outlook: {smtp:"smtp.office365.com", sport:"587", sec:"tls", imap:"outlook.office365.com", iport:"993", hint:""},
-    yahoo: {smtp:"smtp.mail.yahoo.com", sport:"587", sec:"tls", imap:"imap.mail.yahoo.com", iport:"993",
-      hint:"⚠️ Yahoo me normal password NAHI chalega! Yahoo Account Security se 'App password' banao."},
-    zoho: {smtp:"smtp.zoho.com", sport:"587", sec:"tls", imap:"imap.zoho.com", iport:"993", hint:""},
-    custom: {smtp:"", sport:"587", sec:"tls", imap:"", iport:"993", hint:"Apne email provider se SMTP/IMAP settings le kar yahan likho."}
+      hint:"⚠️ Gmail me normal password NAHI chalega! Google Account → Security → 2-Step Verification ON karo, phir 'App passwords' se 16-digit app password banao aur wahan paste karo."}
   };
   function fillProvider() {
     const p = PRESETS[document.getElementById("provider").value];
