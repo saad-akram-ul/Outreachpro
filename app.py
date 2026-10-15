@@ -290,15 +290,60 @@ def smtp_login(host, port, email, password, secure="ssl", timeout=25):
         raise
 
 
+def _relay_config():
+    """Returns (url, secret) if SMTP relay is configured via env, else (None, None)."""
+    import os
+    url = os.environ.get("SMTP_RELAY_URL", "").strip().rstrip("/")
+    secret = os.environ.get("SMTP_RELAY_SECRET", "").strip()
+    if url and secret:
+        return url, secret
+    return None, None
+
+
+def _relay_call(path, payload, timeout=30):
+    """POST to the SMTP relay. Returns (ok, msg)."""
+    import json, urllib.request
+    url, secret = _relay_config()
+    if not url:
+        return False, "relay not configured"
+    payload = dict(payload)
+    payload["secret"] = secret
+    try:
+        req = urllib.request.Request(
+            url + path,
+            data=json.dumps(payload).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST")
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode())
+        return bool(data.get("ok")), data.get("msg", "")
+    except Exception as e:
+        return False, f"Relay error: {str(e)[:120]}"
+
+
 def test_smtp(host, port, email, password, secure="ssl"):
     """Try SMTP login. Returns (ok, message). Network-level failures
-    auto-fallback to the alternate port (handled inside smtp_login)."""
+    auto-fallback to the alternate port (handled inside smtp_login).
+    If SMTP_RELAY_URL is set, tests via the relay (for hosts that block SMTP)."""
+    # Try relay first if configured (Render blocks direct SMTP)
+    relay_url, _ = _relay_config()
+    if relay_url:
+        ok, msg = _relay_call("/relay/test", {
+            "host": host, "port": str(port), "email": email,
+            "password": password, "secure": secure}, timeout=30)
+        if ok:
+            return True, "Connected! Login kamyab raha."
+        # Relay reachable but login failed = real auth failure, don't fall through
+        if "unauthorized" not in msg.lower() and "relay error" not in msg.lower():
+            return False, "Failed: " + msg[:140]
+        # Relay itself unreachable -> fall through to direct attempt
     try:
         with smtp_login(host, port, email, password, secure, timeout=12):
             pass
         return True, "Connected! Login kamyab raha."
     except Exception as e:
         return False, "Failed: " + str(e)[:140]
+
 
 
 # Country -> IANA timezone (for sending at recipient's local morning)
@@ -428,7 +473,8 @@ def pick_sender(db, user_id):
 
 
 def send_one_email(db, user_id, account_id, to_email, subject, body, html_body=None, unsub_url=None):
-    """Send via stored SMTP account. Returns (ok, error)."""
+    """Send via stored SMTP account. Returns (ok, error).
+    Uses HTTP relay if SMTP_RELAY_URL is set (for hosts blocking SMTP)."""
     import smtplib, ssl
     from email.mime.text import MIMEText
     from email.mime.multipart import MIMEMultipart
@@ -437,6 +483,18 @@ def send_one_email(db, user_id, account_id, to_email, subject, body, html_body=N
     if not acc:
         return False, "account not found"
     pw = get_fernet().decrypt(acc["password_enc"].encode()).decode()
+    secure = acc["smtp_secure"] if "smtp_secure" in acc.keys() else "ssl"
+    # Relay path (Render blocks direct SMTP)
+    relay_url, _ = _relay_config()
+    if relay_url:
+        html = html_body or f"<p>{body}</p>"
+        if unsub_url:
+            html += f'<br><br><a href="{unsub_url}">Unsubscribe</a>'
+        ok, msg = _relay_call("/relay/send", {
+            "host": acc["smtp_host"], "port": str(acc["smtp_port"]),
+            "email": acc["email"], "password": pw, "secure": secure,
+            "to": to_email, "subject": subject, "html": html}, timeout=40)
+        return ok, "" if ok else msg[:200]
     try:
         if html_body:
             msg = MIMEMultipart("alternative")
@@ -451,7 +509,6 @@ def send_one_email(db, user_id, account_id, to_email, subject, body, html_body=N
             msg["List-Unsubscribe"] = f"<{unsub_url}>"
             msg["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click"
         ctx = ssl.create_default_context()
-        secure = acc["smtp_secure"] if "smtp_secure" in acc.keys() else "ssl"
         with smtp_login(acc["smtp_host"], acc["smtp_port"], acc["email"], pw, secure) as s:
             s.send_message(msg)
         return True, ""
@@ -929,38 +986,52 @@ def email_send_test():
         flash("Sahi recipient email likho.", "error")
         return redirect(url_for("emails"))
     pw = get_fernet().decrypt(acc["password_enc"].encode()).decode()
-    try:
-        msg = MIMEText(
-            "Ye OutreachPro by Saad Akram se bheja gaya test email hai.\n\n"
-            "Agar ye tumhe mil gaya hai to tumhara email account bilkul sahi connect hai.\n\n"
-            "Best regards,\nSaad Akram")
-        msg["Subject"] = "OutreachPro by Saad Akram - Test Email"
-        msg["From"] = acc["email"]
-        msg["To"] = to
-        ctx = ssl.create_default_context()
-        secure = acc["smtp_secure"] if "smtp_secure" in acc.keys() else "ssl"
-        with smtp_login(acc["smtp_host"], acc["smtp_port"], acc["email"], pw, secure) as s:
-            s.send_message(msg)
-        # Log test email to outbox so it shows up
-        db2 = get_db()
+    secure = acc["smtp_secure"] if "smtp_secure" in acc.keys() else "ssl"
+    # Relay path (Render blocks direct SMTP)
+    relay_url, _ = _relay_config()
+    if relay_url:
+        ok, rmsg = _relay_call("/relay/send", {
+            "host": acc["smtp_host"], "port": str(acc["smtp_port"]),
+            "email": acc["email"], "password": pw, "secure": secure,
+            "to": to, "subject": "OutreachPro by Saad Akram - Test Email",
+            "html": "<p>Ye OutreachPro by Saad Akram se bheja gaya test email hai.</p><p>Agar ye tumhe mil gaya hai to tumhara email account bilkul sahi connect hai.</p><p>Best regards,<br>Saad Akram</p>"},
+            timeout=40)
+        if not ok:
+            flash("❌ " + rmsg, "error")
+            return redirect(url_for("emails"))
+    else:
         try:
-            from datetime import datetime
-            db2.execute(
-                """INSERT INTO outbox
-                   (user_id, account_id, prospect_id, campaign_id, kind,
-                    subject, body, status, sent_at)
-                   VALUES (?,?,?,?, 'test', ?, ?, 'sent', ?)""",
-                (session["user_id"], acc["id"], None, None,
-                 "OutreachPro by Saad Akram - Test Email",
-                 "Ye OutreachPro by Saad Akram se bheja gaya test email hai.",
-                 datetime.now().isoformat(timespec="seconds")))
-            db2.commit()
-        except Exception:
-            pass
-        db2.close()
-        flash(f"Test email {to} par bhej di gayi! Inbox check karo.", "success")
-    except Exception as e:
-        flash("Bhejne me error: " + str(e)[:160], "error")
+            msg = MIMEText(
+                "Ye OutreachPro by Saad Akram se bheja gaya test email hai.\n\n"
+                "Agar ye tumhe mil gaya hai to tumhara email account bilkul sahi connect hai.\n\n"
+                "Best regards,\nSaad Akram")
+            msg["Subject"] = "OutreachPro by Saad Akram - Test Email"
+            msg["From"] = acc["email"]
+            msg["To"] = to
+            ctx = ssl.create_default_context()
+            with smtp_login(acc["smtp_host"], acc["smtp_port"], acc["email"], pw, secure) as s:
+                s.send_message(msg)
+        except Exception as e:
+            flash("❌ " + str(e)[:200], "error")
+            return redirect(url_for("emails"))
+    # Log test email to outbox so it shows up
+    db2 = get_db()
+    try:
+        from datetime import datetime
+        db2.execute(
+            """INSERT INTO outbox
+               (user_id, account_id, prospect_id, campaign_id, kind,
+                subject, body, status, sent_at)
+               VALUES (?,?,?,?, 'test', ?, ?, 'sent', ?)""",
+            (session["user_id"], acc["id"], None, None,
+             "OutreachPro by Saad Akram - Test Email",
+             "Ye OutreachPro by Saad Akram se bheja gaya test email hai.",
+             datetime.now().isoformat(timespec="seconds")))
+        db2.commit()
+    except Exception:
+        pass
+    db2.close()
+    flash(f"Test email {to} par bhej di gayi! Inbox check karo.", "success")
     return redirect(url_for("emails"))
 
 
