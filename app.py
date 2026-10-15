@@ -256,11 +256,26 @@ def smtp_login(host, port, email, password, secure="ssl", timeout=25):
 
 
 def test_smtp(host, port, email, password, secure="ssl"):
-    """Try SMTP login. Returns (ok, message)."""
+    """Try SMTP login. Returns (ok, message). Auto-fallback to alternate port on network errors."""
+    import socket
+    # Primary attempt
     try:
         with smtp_login(host, port, email, password, secure, timeout=12):
             pass
         return True, "Connected! Login kamyab raha."
+    except (socket.error, OSError) as e:
+        err_no = getattr(e, 'errno', None)
+        # Network-level failure (unreachable, timeout, DNS) — try alternate port
+        if err_no in (101, 110, 113) or 'unreachable' in str(e).lower() or 'timed out' in str(e).lower():
+            alt_port = "587" if str(port) == "465" else "465"
+            alt_secure = "tls" if alt_port == "587" else "ssl"
+            try:
+                with smtp_login(host, alt_port, email, password, alt_secure, timeout=12):
+                    pass
+                return True, f"Connected! (port {alt_port} par kamyab raha)"
+            except Exception as e2:
+                return False, f"Network issue: {str(e)[:80]} — dobara try karo ya thodi der baad."
+        return False, "Failed: " + str(e)[:140]
     except Exception as e:
         return False, "Failed: " + str(e)[:140]
 
