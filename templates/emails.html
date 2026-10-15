@@ -26,30 +26,6 @@
   </form>
 </div>
 <div class="panel">
-  <h3>📮 Gmail Connect Karo</h3>
-  <p style="color:var(--muted);font-size:13px;margin-bottom:16px">
-    Apna <b>Gmail / Google Workspace</b> account connect karo.
-    <b>"Connect" dabate hi login verify hoga</b> — ghalat password par account save hi nahi hoga.
-    Password <b>encrypted</b> save hota hai.
-  </p>
-  <p style="font-size:12px;color:var(--warn);margin:8px 0">⚠️ Gmail me normal password NAHI chalega! Google Account → Security → 2-Step Verification ON karo, phir 'App passwords' se 16-digit app password banao aur wahan paste karo.</p>
-  <form method="POST">
-    <input type="hidden" name="provider" value="gmail">
-    <input type="hidden" name="smtp_host" value="smtp.gmail.com">
-    <input type="hidden" name="smtp_port" value="587">
-    <input type="hidden" name="smtp_secure" value="tls">
-    <input type="hidden" name="imap_host" value="imap.gmail.com">
-    <input type="hidden" name="imap_port" value="993">
-    <div class="profile-grid">
-      <div class="field"><label>Gmail Address</label>
-        <input type="email" name="email" placeholder="you@gmail.com" required></div>
-      <div class="field"><label>App Password</label>
-        <input type="password" name="password" placeholder="16-digit app password" required></div>
-    </div>
-    <button class="btn" type="submit" style="width:auto;padding:12px 32px">+ Connect Gmail</button>
-  </form>
-</div>
-<div class="panel">
   <h3>Connected Accounts ({{ accounts|length }})</h3>
   {% if accounts %}
   <table>
