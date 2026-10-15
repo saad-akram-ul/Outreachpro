@@ -238,6 +238,14 @@ def task_delete(tid):
     return redirect(url_for("tasks"))
 
 
+def _is_network_error(e):
+    """True for network-level failures (unreachable, timeout, DNS) where
+    retrying the alternate SMTP port is worth trying."""
+    err_no = getattr(e, "errno", None)
+    return (err_no in (101, 110, 113) or "unreachable" in str(e).lower()
+            or "timed out" in str(e).lower())
+
+
 def smtp_login(host, port, email, password, secure="ssl", timeout=25):
     """Connect + login to SMTP, handling both SSL (465) and STARTTLS (587).
 
@@ -262,19 +270,11 @@ def smtp_login(host, port, email, password, secure="ssl", timeout=25):
     try:
         return _connect(port, secure)
     except (socket.error, OSError) as e:
-        err_no = getattr(e, "errno", None)
-        if err_no in (101, 110, 113) or "unreachable" in str(e).lower() \
-                or "timed out" in str(e).lower():
+        if _is_network_error(e):
             alt_port = 587 if int(port) == 465 else 465
             alt_secure = "tls" if alt_port == 587 else "ssl"
             return _connect(alt_port, alt_secure)
         raise
-
-
-def _is_network_error(e):
-    err_no = getattr(e, "errno", None)
-    return (err_no in (101, 110, 113) or "unreachable" in str(e).lower()
-            or "timed out" in str(e).lower())
 
 
 def test_smtp(host, port, email, password, secure="ssl"):
