@@ -257,25 +257,18 @@ def smtp_login(host, port, email, password, secure="ssl", timeout=25):
     ctx = ssl.create_default_context()
     port = int(port)
 
-    def _resolve_ipv4(h):
-        """Force IPv4: some hosts (e.g. Render) have broken IPv6 routes
-        causing [Errno 101] Network is unreachable. Returns IPv4 string."""
-        try:
-            infos = socket.getaddrinfo(h, None, socket.AF_INET, socket.SOCK_STREAM)
-            if infos:
-                return infos[0][4][0]
-        except socket.gaierror:
-            pass
-        return h
-
-    smtp_host = _resolve_ipv4(host)
+    # NOTE (2026-10-16): Do NOT pre-resolve the hostname to a raw IPv4 address.
+    # Connecting by IP breaks TLS certificate verification (the cert is issued
+    # for the hostname, e.g. smtp.hostinger.com, not the IP) and produces
+    # "CERTIFICATE_VERIFY_FAILED: IP address mismatch". Vercel's network
+    # resolves and routes by hostname correctly, so use it directly.
 
     def _connect(p, sec):
         use_ssl = (sec or "").lower() == "ssl" or int(p) == 465
         if use_ssl:
-            s = smtplib.SMTP_SSL(smtp_host, int(p), context=ctx, timeout=timeout)
+            s = smtplib.SMTP_SSL(host, int(p), context=ctx, timeout=timeout)
         else:
-            s = smtplib.SMTP(smtp_host, int(p), timeout=timeout)
+            s = smtplib.SMTP(host, int(p), timeout=timeout)
             s.starttls(context=ctx)
         s.login(email, password)
         return s
